@@ -203,13 +203,25 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:
         raise HTTPException(403, "Bu işlem için yönetici yetkisi gerekli")  # A01
     return user
 
+def get_client_ip(request: Request) -> str:
+    """Return real client IP — prefers CF-Connecting-IP (Cloudflare Tunnel/Proxy)."""
+    return (
+        request.headers.get("CF-Connecting-IP")
+        or request.headers.get("X-Real-IP")
+        or request.client.host
+        or "unknown"
+    )
+
 # ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="NordGpT", docs_url=None, redoc_url=None)  # hide API docs in prod
 
-# A05: Strict CORS — same-origin only (localhost)
+# A05: Strict CORS — same-origin + production domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:7860", "http://127.0.0.1:7860"],
+    allow_origins=[
+        "http://localhost:7860", "http://127.0.0.1:7860",
+        "https://chat.nordisglobal.com",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
@@ -312,7 +324,7 @@ async def _verify_turnstile(token: str, ip: str) -> bool:
 
 @app.post("/auth/login")
 async def login(request: Request, data: LoginRequest):
-    client_ip = request.client.host or "unknown"
+    client_ip = get_client_ip(request)
 
     # A07: Rate limiting
     if is_rate_limited(client_ip):
@@ -352,7 +364,7 @@ async def login(request: Request, data: LoginRequest):
         httponly=True,      # A02: JS cannot read cookie
         samesite="strict",  # A08: CSRF protection
         max_age=86400,      # 24h
-        secure=False,       # Set True when served over HTTPS
+        secure=True,
         path="/",
     )
     return resp
@@ -421,7 +433,7 @@ async def microsoft_callback(
     error_description: str | None = None,
 ):
     """Step 2: Microsoft redirects here with auth code; exchange for token."""
-    client_ip = request.client.host or "unknown"
+    client_ip = get_client_ip(request)
 
     # A07: Rate limit the callback too (prevents brute-forcing stolen codes)
     if is_rate_limited(client_ip):
@@ -531,7 +543,7 @@ async def microsoft_callback(
         httponly=True,
         samesite="lax",   # must be lax (not strict) for OAuth2 redirect flow
         max_age=86400,
-        secure=False,     # change to True when served over HTTPS
+        secure=True,
         path="/",
     )
     return response
