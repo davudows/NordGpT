@@ -54,9 +54,7 @@ body {
   text-align: center;
 }
 
-.field {
-  margin-bottom: 14px;
-}
+.field { margin-bottom: 14px; }
 
 label {
   display: block;
@@ -65,7 +63,8 @@ label {
   margin-bottom: 5px;
 }
 
-input {
+input[type="text"],
+input[type="password"] {
   width: 100%;
   background: #212121;
   border: 1px solid #3d3d3d;
@@ -79,6 +78,61 @@ input {
 input:focus { border-color: #10a37f; }
 input::placeholder { color: #555; }
 
+/* ── Press & Hold CAPTCHA ── */
+.hold-wrap {
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+.btn-hold {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8e8ea0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  text-align: center;
+  transition: border-color 0.2s, color 0.2s;
+  touch-action: none;
+}
+.btn-hold:not(.verified):active,
+.btn-hold.holding {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+.btn-hold.verified {
+  border-color: #10a37f;
+  color: #10a37f;
+  cursor: default;
+}
+.hold-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: rgba(245, 158, 11, 0.18);
+  border-radius: 8px;
+  pointer-events: none;
+  transition: none;
+}
+.btn-hold.verified .hold-fill {
+  background: rgba(16, 163, 127, 0.18);
+  width: 100%;
+}
+.hold-icon { margin-right: 6px; font-size: 15px; }
+.hold-hint {
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+  margin-top: 5px;
+}
+
+/* ── Login button ── */
 .btn-login {
   width: 100%;
   background: #10a37f;
@@ -89,11 +143,11 @@ input::placeholder { color: #555; }
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 6px;
+  margin-top: 10px;
   transition: background 0.15s, opacity 0.15s;
 }
-.btn-login:hover { background: #0d8a6b; }
-.btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-login:hover:not(:disabled) { background: #0d8a6b; }
+.btn-login:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ── Divider ── */
 .divider {
@@ -134,13 +188,6 @@ input::placeholder { color: #555; }
 .btn-ms svg  { flex-shrink: 0; }
 .ms-sso-section { display: none; }
 
-/* ── Captcha placeholder ── */
-.captcha-wrap {
-  margin-top: 12px;
-  display: flex;
-  justify-content: center;
-}
-
 /* ── Error / warning ── */
 .error-msg {
   background: rgba(229, 83, 83, 0.1);
@@ -179,9 +226,9 @@ input::placeholder { color: #555; }
   <div class="card">
     <div class="card-title">Giriş Yap</div>
 
-    <!-- Microsoft SSO section (shown only when configured) -->
+    <!-- Microsoft SSO (shown only when configured) -->
     <div class="ms-sso-section" id="ms-sso-section">
-      <a class="btn-ms" href="/auth/microsoft" id="btn-ms">
+      <a class="btn-ms" href="/auth/microsoft">
         <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
           <rect x="1"  y="1"  width="9" height="9" fill="#f25022"/>
           <rect x="11" y="1"  width="9" height="9" fill="#7fba00"/>
@@ -190,39 +237,36 @@ input::placeholder { color: #555; }
         </svg>
         Microsoft ile Giriş Yap
       </a>
-      <div class="divider">veya</div>
+      <div class="divider">veya kullanıcı adı ile giriş yap</div>
     </div>
 
     <form id="login-form" onsubmit="doLogin(event)" autocomplete="on" novalidate>
       <div class="field">
         <label for="username">Kullanıcı Adı</label>
-        <input
-          type="text"
-          id="username"
-          name="username"
-          autocomplete="username"
-          placeholder="admin"
-          maxlength="64"
-          required
-        >
+        <input type="text" id="username" name="username"
+          autocomplete="username" placeholder="admin"
+          maxlength="64" required>
       </div>
       <div class="field">
         <label for="password">Şifre</label>
-        <input
-          type="password"
-          id="password"
-          name="password"
-          autocomplete="current-password"
-          placeholder="••••••••"
-          maxlength="128"
-          required
-        >
+        <input type="password" id="password" name="password"
+          autocomplete="current-password" placeholder="••••••••"
+          maxlength="128" required>
       </div>
 
-      <!-- Cloudflare Turnstile CAPTCHA (injected by JS when enabled) -->
-      <div id="captcha-wrap" class="captcha-wrap" style="display:none"></div>
+      <!-- Press & Hold verification -->
+      <div class="hold-wrap">
+        <button type="button" class="btn-hold" id="hold-btn"
+          onmousedown="holdStart(event)"  onmouseup="holdCancel()"  onmouseleave="holdCancel()"
+          ontouchstart="holdStart(event)" ontouchend="holdCancel()" ontouchcancel="holdCancel()">
+          <div class="hold-fill" id="hold-fill"></div>
+          <span class="hold-icon">🔒</span>
+          <span id="hold-label">Doğrulamak için basılı tutun</span>
+        </button>
+        <div class="hold-hint">Butonu 3 saniye basılı tutun</div>
+      </div>
 
-      <button type="submit" class="btn-login" id="submit-btn">Giriş Yap</button>
+      <button type="submit" class="btn-login" id="submit-btn" disabled>Giriş Yap</button>
     </form>
 
     <div class="error-msg" id="error-msg"></div>
@@ -235,9 +279,71 @@ input::placeholder { color: #555; }
 </div>
 
 <script>
-let failedAttempts = 0;
-let turnstileSiteKey = '';
-let turnstileWidgetId = null;
+let failedAttempts  = 0;
+let holdInterval    = null;
+let holdProgress    = 0;
+let holdVerified    = false;
+const HOLD_DURATION = 3000;   // ms — 3 saniye
+const HOLD_STEP     = 50;     // ms interval tick
+
+// ── Press & Hold CAPTCHA ───────────────────────────────────────────────────────
+function holdStart(e) {
+  e.preventDefault();
+  if (holdVerified) return;
+
+  const btn  = document.getElementById('hold-btn');
+  const fill = document.getElementById('hold-fill');
+  btn.classList.add('holding');
+
+  holdInterval = setInterval(() => {
+    holdProgress += HOLD_STEP;
+    const pct = Math.min((holdProgress / HOLD_DURATION) * 100, 100);
+    fill.style.width = pct + '%';
+
+    if (holdProgress >= HOLD_DURATION) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+      holdVerified = true;
+      btn.classList.remove('holding');
+      btn.classList.add('verified');
+      document.getElementById('hold-label').textContent = 'Doğrulama tamamlandı';
+      btn.querySelector('.hold-icon').textContent = '✓';
+      document.getElementById('submit-btn').disabled = false;
+      document.getElementById('submit-btn').focus();
+    }
+  }, HOLD_STEP);
+}
+
+function holdCancel() {
+  if (holdVerified) return;
+  clearInterval(holdInterval);
+  holdInterval = null;
+
+  // Animate back to 0
+  const fill = document.getElementById('hold-fill');
+  fill.style.transition = 'width 0.4s ease';
+  fill.style.width = '0%';
+  setTimeout(() => { fill.style.transition = 'none'; }, 450);
+
+  holdProgress = 0;
+  document.getElementById('hold-btn').classList.remove('holding');
+}
+
+function resetHold() {
+  holdVerified = false;
+  holdProgress = 0;
+  clearInterval(holdInterval);
+  holdInterval = null;
+
+  const btn  = document.getElementById('hold-btn');
+  const fill = document.getElementById('hold-fill');
+  btn.classList.remove('holding', 'verified');
+  btn.querySelector('.hold-icon').textContent = '🔒';
+  document.getElementById('hold-label').textContent = 'Doğrulamak için basılı tutun';
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  document.getElementById('submit-btn').disabled = true;
+}
 
 // ── Error messages from Microsoft SSO redirect ─────────────────────────────────
 const MS_ERRORS = {
@@ -251,46 +357,23 @@ const MS_ERRORS = {
   no_email:           'Microsoft hesabınızda e-posta adresi bulunamadı.',
 };
 
-const urlParams = new URLSearchParams(window.location.search);
-const urlError  = urlParams.get('error');
-if (urlError && MS_ERRORS[urlError]) {
-  showError(MS_ERRORS[urlError]);
-}
+const urlError = new URLSearchParams(window.location.search).get('error');
+if (urlError && MS_ERRORS[urlError]) showError(MS_ERRORS[urlError]);
 
-// ── Load providers: show Microsoft button & CAPTCHA if configured ──────────────
+// ── Load providers — show Microsoft button if configured ───────────────────────
 fetch('/api/auth/providers')
   .then(r => r.json())
   .then(data => {
     if (data.microsoft) {
       document.getElementById('ms-sso-section').style.display = 'block';
     }
-    if (data.turnstile_site_key) {
-      turnstileSiteKey = data.turnstile_site_key;
-      loadTurnstile();
-    }
   })
   .catch(() => {});
-
-function loadTurnstile() {
-  // Dynamically load Cloudflare Turnstile script
-  const script = document.createElement('script');
-  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-  script.async = true;
-  script.defer = true;
-  script.onload = () => {
-    const wrap = document.getElementById('captcha-wrap');
-    wrap.style.display = 'flex';
-    turnstileWidgetId = window.turnstile.render(wrap, {
-      sitekey: turnstileSiteKey,
-      theme: 'dark',
-    });
-  };
-  document.head.appendChild(script);
-}
 
 // ── Password login ─────────────────────────────────────────────────────────────
 async function doLogin(e) {
   e.preventDefault();
+  if (!holdVerified) return;
 
   const btn    = document.getElementById('submit-btn');
   const errEl  = document.getElementById('error-msg');
@@ -313,13 +396,7 @@ async function doLogin(e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({
-        username,
-        password,
-        cf_turnstile_response: turnstileSiteKey
-          ? (window.turnstile?.getResponse(turnstileWidgetId) || '')
-          : '',
-      }),
+      body: JSON.stringify({ username, password, cf_turnstile_response: '' }),
     });
 
     if (res.ok) {
@@ -329,23 +406,19 @@ async function doLogin(e) {
 
     const data = await res.json().catch(() => ({}));
     failedAttempts++;
-    // Reset CAPTCHA after failed attempt so user gets a new challenge
-    if (turnstileSiteKey && window.turnstile) {
-      window.turnstile.reset(turnstileWidgetId);
-    }
+
+    // Reset hold after every failed attempt
+    resetHold();
 
     if (res.status === 429) {
       showError('Çok fazla başarısız deneme. Lütfen 5 dakika bekleyin.');
-      btn.disabled = true;
       btn.textContent = 'Kilitlendi';
       return;
     }
 
-    if (res.status === 401) {
-      showError('Kullanıcı adı veya şifre hatalı.');
-    } else {
-      showError(data.detail || 'Giriş yapılamadı. Tekrar deneyin.');
-    }
+    showError(res.status === 401
+      ? 'Kullanıcı adı veya şifre hatalı.'
+      : (data.detail || 'Giriş yapılamadı. Tekrar deneyin.'));
 
     if (failedAttempts >= 3) {
       warnEl.style.display = 'block';
@@ -354,9 +427,10 @@ async function doLogin(e) {
 
   } catch (err) {
     showError('Sunucuya bağlanılamadı. NordGpT çalışıyor mu?');
+    resetHold();
   } finally {
     if (!btn.textContent.includes('Kilitlendi')) {
-      btn.disabled = false;
+      btn.disabled = !holdVerified;
       btn.textContent = 'Giriş Yap';
     }
   }
