@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NordGpT</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+:root {
+  --bg:#212121; --sidebar:#171717; --surface:#2f2f2f; --surface2:#3a3a3a;
+  --border:#3d3d3d; --text:#ececec; --text2:#8e8ea0;
+  --accent:#10a37f; --accent-h:#0d8a6b; --danger:#e55353;
+  --sw:260px; --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden}
+
+/* ── Sidebar ── */
+#sidebar{width:var(--sw);min-width:var(--sw);background:var(--sidebar);display:flex;flex-direction:column;border-right:1px solid var(--border);z-index:10;transition:transform .2s}
+.s-top{padding:14px 12px 10px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--border)}
+.logo{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:-.5px;padding:4px 4px 8px}
+.logo span{color:var(--text)}
+.btn-new{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s}
+.btn-new:hover{background:var(--accent-h)}
+.temp-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text2);user-select:none}
+.temp-row:hover{color:var(--text)}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.tslider{position:absolute;inset:0;background:var(--surface2);border-radius:10px;cursor:pointer;transition:background .2s}
+.tslider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s}
+.toggle input:checked+.tslider{background:var(--accent)}
+.toggle input:checked+.tslider:before{transform:translateX(16px)}
+#temp-badge{display:none;background:#f59e0b;color:#000;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
+#temp-badge.on{display:inline-block}
+.s-search{padding:8px 12px;border-bottom:1px solid var(--border)}
+.s-search input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-size:13px;outline:none}
+.s-search input:focus{border-color:var(--accent)}
+.s-search input::placeholder{color:var(--text2)}
+#chat-list{flex:1;overflow-y:auto;padding:8px 6px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.grp-label{font-size:11px;font-weight:600;color:var(--text2);padding:10px 8px 4px;text-transform:uppercase;letter-spacing:.5px}
+.chat-item{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--text2);transition:background .1s,color .1s;position:relative}
+.chat-item:hover,.chat-item.active{background:var(--surface);color:var(--text)}
+.ci-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ci-actions{display:none;gap:2px}
+.chat-item:hover .ci-actions{display:flex}
+.s-foot{padding:10px 12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.btn-ghost{background:none;border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s;width:100%}
+.btn-ghost:hover{background:var(--surface);color:var(--text);border-color:var(--text2)}
+.btn-ghost.danger:hover{border-color:var(--danger);color:var(--danger)}
+
+/* ── Main ── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Header ── */
+#header{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0}
+#menu-btn{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px}
+.model-wrap{flex:1;display:flex;align-items:center;gap:8px}
+#model-select{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;font-size:14px;cursor:pointer;outline:none;min-width:160px;max-width:280px}
+#model-select:focus{border-color:var(--accent)}
+#ollama-status{font-size:12px;display:flex;align-items:center;gap:5px;color:var(--text2)}
+.sdot{width:8px;height:8px;border-radius:50%;background:#555}
+.sdot.on{background:var(--accent)} .sdot.off{background:var(--danger)}
+/* User chip */
+.user-chip{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 10px;font-size:12px;cursor:default;flex-shrink:0}
+.user-chip .role-badge{font-size:10px;background:var(--accent);color:#fff;padding:1px 5px;border-radius:10px;font-weight:700}
+.user-chip .role-badge.admin-b{background:#f59e0b;color:#000}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--text2);padding:5px;border-radius:6px;font-size:15px;display:flex;align-items:center;transition:color .1s,background .1s}
+.icon-btn:hover{color:var(--text);background:var(--surface)}
+.icon-btn.danger:hover{color:var(--danger)}
+
+/* ── Messages ── */
+#msgs-wrap{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+#msgs{max-width:760px;margin:0 auto;padding:24px 20px 12px;display:flex;flex-direction:column;gap:4px}
+#empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:12px;color:var(--text2)}
+#empty h2{font-size:26px;color:var(--text);font-weight:600}
+#empty p{font-size:14px;text-align:center;max-width:360px;line-height:1.6}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
+.chip{background:var(--surface);border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:7px 14px;font-size:13px;cursor:pointer;transition:all .15s}
+.chip:hover{background:var(--surface2);color:var(--text);border-color:var(--text2)}
+.msg{display:flex;gap:12px;padding:10px 0;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg-av{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px;margin-top:2px}
+.msg.user .msg-av{background:var(--accent);color:#fff}
+.msg.assistant .msg-av{background:var(--surface)}
+.msg-body{flex:1;min-width:0}
+.msg-role{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.msg-content{font-size:15px;line-height:1.65;color:var(--text);word-break:break-word}
+.msg-content p{margin:8px 0}.msg-content p:first-child{margin-top:0}.msg-content p:last-child{margin-bottom:0}
+.msg-content h1,.msg-content h2,.msg-content h3{margin:14px 0 6px;line-height:1.3}
+.msg-content ul,.msg-content ol{margin:8px 0 8px 20px}
+.msg-content li{margin:4px 0}
+.msg-content blockquote{border-left:3px solid var(--accent);padding-left:12px;color:var(--text2);margin:8px 0}
+.msg-content a{color:var(--accent)}
+.msg-content table{border-collapse:collapse;margin:10px 0;width:100%}
+.msg-content th,.msg-content td{border:1px solid var(--border);padding:8px 12px;font-size:14px}
+.msg-content th{background:var(--surface);font-weight:600}
+.msg-content pre{position:relative;margin:10px 0;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.msg-content pre .code-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#1a1a1a;font-size:12px;color:var(--text2)}
+.msg-content pre code{display:block;padding:14px;overflow-x:auto;font-size:13px;line-height:1.5;background:#161616!important}
+.msg-content code:not(pre code){background:var(--surface);padding:2px 5px;border-radius:4px;font-size:13px;font-family:'SF Mono','Fira Code',monospace}
+.copy-btn{background:none;border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;transition:all .15s}
+.copy-btn:hover{background:var(--surface2);color:var(--text)}
+.copy-btn.ok{color:var(--accent);border-color:var(--accent)}
+.msg-actions{display:flex;gap:6px;margin-top:6px;opacity:0;transition:opacity .15s}
+.msg:hover .msg-actions{opacity:1}
+.cursor{display:inline-block;width:2px;height:16px;background:var(--accent);animation:blink 1s step-end infinite;vertical-align:middle;margin-left:2px}
+@keyframes blink{50%{opacity:0}}
+
+/* ── Input ── */
+#input-area{padding:12px 20px 20px;background:var(--bg);border-top:1px solid var(--border)}
+.input-box{max-width:760px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;align-items:flex-end;padding:10px 10px 10px 16px;gap:8px;transition:border-color .15s}
+.input-box:focus-within{border-color:var(--accent)}
+#input{flex:1;background:none;border:none;color:var(--text);font-size:15px;line-height:1.5;resize:none;outline:none;max-height:200px;font-family:inherit;scrollbar-width:thin}
+#input::placeholder{color:var(--text2)}
+#send-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;transition:background .15s,opacity .15s}
+#send-btn:hover{background:var(--accent-h)}
+#send-btn:disabled{opacity:.4;cursor:not-allowed}
+#stop-btn{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;width:36px;height:36px;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+#stop-btn:hover{background:var(--danger);border-color:var(--danger)}
+#stop-btn.on{display:flex}
+.hint{max-width:760px;margin:6px auto 0;font-size:11px;color:var(--text2);text-align:center}
+
+/* ── Modal base ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{background:var(--sidebar);border:1px solid var(--border);border-radius:14px;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-hdr h2{font-size:17px;font-weight:600}
+.modal-body{flex:1;overflow-y:auto;padding:16px 20px;scrollbar-width:thin}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab{background:none;border:none;color:var(--text2);padding:8px 14px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ── Model library ── */
+.cat-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.cat-tab{background:var(--surface);border:1px solid var(--border);color:var(--text2);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer;transition:all .15s}
+.cat-tab:hover{background:var(--surface2);color:var(--text)}
+.cat-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.tier-lbl{font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text2);letter-spacing:.5px;margin:12px 0 6px;display:flex;align-items:center;gap:8px}
+.tier-lbl::after{content:'';flex:1;height:1px;background:var(--border)}
+.model-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:border-color .15s}
+.model-card:hover{border-color:var(--text2)}
+.mc-info{flex:1;min-width:0}
+.mc-name{font-size:14px;font-weight:600;font-family:'SF Mono','Fira Code',monospace}
+.mc-desc{font-size:12px;color:var(--text2);margin-top:2px}
+.mc-size{font-size:12px;color:var(--text2);background:var(--surface2);padding:2px 8px;border-radius:12px;white-space:nowrap}
+.mc-prog{display:none;margin-top:6px;background:var(--surface2);border-radius:4px;height:4px;overflow:hidden}
+.mc-bar{height:100%;background:var(--accent);transition:width .3s;width:0}
+.btn-pull{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s}
+.btn-pull:hover{background:var(--accent-h)}
+.btn-pull.inst{background:var(--surface2);color:var(--text2);cursor:default}
+.btn-pull.pulling{background:#f59e0b;cursor:not-allowed}
+
+/* ── Settings modal specifics ── */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:14px;font-weight:500}
+.setting-desc{font-size:12px;color:var(--text2);margin-top:2px}
+select.setting-sel{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:14px;cursor:pointer;outline:none}
+select.setting-sel:focus{border-color:var(--accent)}
+
+/* ── Users panel ── */
+.user-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.uc-name{flex:1;font-size:14px;font-weight:600}
+.uc-meta{font-size:12px;color:var(--text2)}
+.role-pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+.role-pill.admin{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
+.role-pill.user{background:rgba(16,163,127,.15);color:var(--accent);border:1px solid rgba(16,163,127,.3)}
+.add-user-form{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px}
+.add-user-form h4{font-size:14px;font-weight:600;margin-bottom:12px}
+.form-row{display:flex;gap:8px;margin-bottom:10px}
+.form-row:last-child{margin-bottom:0}
+.form-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;font-family:inherit}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--text2)}
+.form-select{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;cursor:pointer}
+.form-select:focus{border-color:var(--accent)}
+.btn-sm{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;white-space:nowrap}
+.btn-sm:hover{background:var(--accent-h)}
+.btn-sm.danger{background:none;border:1px solid var(--danger);color:var(--danger)}
+.btn-sm.danger:hover{background:var(--danger);color:#fff}
+.form-msg{font-size:13px;margin-top:8px;padding:8px 12px;border-radius:8px;display:none}
+.form-msg.ok{background:rgba(16,163,127,.1);border:1px solid rgba(16,163,127,.3);color:var(--accent);display:block}
+.form-msg.err{background:rgba(229,83,83,.1);border:1px solid rgba(229,83,83,.3);color:var(--danger);display:block}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  #sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%)}
+  #sidebar.open{transform:none}
+  #menu-btn{display:block}
+  #sob{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9}
+  #sidebar.open~#sob{display:block}
+}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div class="s-top">
+    <div class="logo">Nord<span>GpT</span></div>
+    <button class="btn-new" onclick="newChat()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      <span data-i18n="newChat">Yeni Sohbet</span>
+    </button>
+    <label class="temp-row">
+      <label class="toggle">
+        <input type="checkbox" id="temp-toggle" onchange="toggleTemp()">
+        <span class="tslider"></span>
+      </label>
+      <span data-i18n="tempChat">Geçici Sohbet</span>
+      <span id="temp-badge" data-i18n="TEMP">GEÇİCİ</span>
+    </label>
+  </div>
+  <div class="s-search">
+    <input type="text" id="search-input" data-i18n-attr="placeholder" data-i18n="searchPlaceholder" placeholder="Sohbet ara..." oninput="filterChats()">
+  </div>
+  <div id="chat-list"></div>
+  <div class="s-foot">
+    <button class="btn-ghost danger" onclick="clearAllHistory()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      <span data-i18n="clearHistory">Geçmişi Temizle</span>
+    </button>
+  </div>
+</aside>
+<div id="sob" onclick="closeSidebar()"></div>
+
+<!-- Main -->
+<main id="main">
+  <div id="header">
+    <button id="menu-btn" onclick="toggleSidebar()">☰</button>
+    <div class="model-wrap">
+      <select id="model-select" onchange="onModelChange()">
+        <option value="">Yükleniyor...</option>
+      </select>
+    </div>
+    <div id="ollama-status">
+      <span class="sdot" id="sdot"></span>
+      <span id="stxt">...</span>
+    </div>
+    <!-- User chip -->
+    <div class="user-chip" id="user-chip">
+      <span id="uname">—</span>
+      <span id="urole-badge" class="role-badge"></span>
+    </div>
+    <!-- Settings -->
+    <button class="icon-btn" onclick="openSettings()" title="Ayarlar">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+    <!-- Logout -->
+    <button class="icon-btn danger" onclick="doLogout()" title="Çıkış">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </button>
+  </div>
+
+  <div id="msgs-wrap">
+    <div id="msgs"></div>
+  </div>
+
+  <div id="input-area">
+    <div class="input-box">
+      <textarea id="input" rows="1" data-i18n-attr="placeholder" data-i18n="inputPlaceholder"
+        placeholder="Mesajınızı yazın..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="stop-btn" onclick="stopGen()" title="Durdur">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+      </button>
+      <button id="send-btn" onclick="sendMessage()" title="Gönder">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+    </div>
+    <div class="hint" data-i18n="disclaimer">NordGpT hatalar yapabilir. Önemli bilgileri doğrulayın.</div>
+  </div>
+</main>
+
+<!-- Settings Modal -->
+<div class="overlay" id="settings-overlay" onclick="closeOverlay(event,'settings-overlay')">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-hdr">
+      <h2>⚙️ <span data-i18n="settings">Ayarlar</span></h2>
+      <button class="icon-btn" onclick="closeModal('settings-overlay')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('lang-tab',this)" data-i18n="tabLang">🌐 Dil</button>
+        <button class="tab" onclick="switchTab('models-tab',this)" data-i18n="tabModels">📦 Modeller</button>
+        <button class="tab" id="users-tab-btn" onclick="switchTab('users-tab',this)" data-i18n="tabUsers">👥 Kullanıcılar</button>
+        <button class="tab" onclick="switchTab('about-tab',this)" data-i18n="tabAbout">ℹ️ Hakkında</button>
+      </div>
+
+      <!-- Language tab -->
+      <div id="lang-tab" class="tab-content active">
+        <div class="setting-row">
+          <div>
+            <div class="setting-label" data-i18n="interfaceLang">Arayüz Dili</div>
+            <div class="setting-desc" data-i18n="interfaceLangDesc">Menü ve mesajların görüntülenme dili</div>
+          </div>
+          <select class="setting-sel" id="lang-sel" onchange="changeLang(this.value)">
+            <option value="tr">🇹🇷 Türkçe</option>
+            <option value="en">🇬🇧 English</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="es">🇪🇸 Español</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Models tab -->
+      <div id="models-tab" class="tab-content">
+        <div id="lib-body"><div style="color:var(--text2);font-size:13px;padding:8px 0">Yükleniyor...</div></div>
+      </div>
+
+      <!-- Users tab (admin only) -->
+      <div id="users-tab" class="tab-content">
+        <div id="users-list">
+          <div style="color:var(--text2);font-size:13px">Yükleniyor...</div>
+        </div>
+        <div class="add-user-form">
+          <h4 data-i18n="addUser">Yeni Kullanıcı Ekle</h4>
+          <div class="form-row">
+            <input class="form-input" id="new-uname" type="text" data-i18n-attr="placeholder" data-i18n="username" placeholder="Kullanıcı adı" maxlength="32" autocomplete="off">
+            <input class="form-input" id="new-upass" type="password" data-i18n-attr="placeholder" data-i18n="password" placeholder="Şifre (min 8)" maxlength="128" autocomplete="new-password">
+          </div>
+          <div class="form-row">
+            <select class="form-select" id="new-urole">
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+            <button class="btn-sm" onclick="createUser()" data-i18n="addUser">Ekle</button>
+          </div>
+          <div class="form-msg" id="user-form-msg"></div>
+        </div>
+      </div>
+
+      <!-- About tab -->
+      <div id="about-tab" class="tab-content">
+        <div style="text-align:center;padding:20px 0">
+          <div style="font-size:48px">🤖</div>
+          <h3 style="margin:12px 0 6px;font-size:20px;color:var(--accent)">NordGpT</h3>
+          <p style="color:var(--text2);font-size:13px;line-height:1.6">
+            Yerel AI chat arayüzü. Ollama üzerinde çalışır.<br>
+            Gizliliğiniz korunur — hiçbir veri dışarı gitmez.<br><br>
+            <strong>OWASP Top 10</strong> güvenlik standartları uygulandı.<br>
+            bcrypt şifreleme · Rate limiting · Güvenli oturum yönetimi
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════════════════════
+const i18n = {
+  tr:{
+    newChat:'Yeni Sohbet',tempChat:'Geçici Sohbet',TEMP:'GEÇİCİ',
+    searchPlaceholder:'Sohbet ara...',modelLibrary:'Model Kütüphanesi',
+    clearHistory:'Geçmişi Temizle',today:'Bugün',yesterday:'Dün',
+    lastWeek:'Son 7 Gün',older:'Daha Eski',noChats:'Henüz sohbet yok',
+    you:'Siz',assistant:'Asistan',
+    inputPlaceholder:'Mesajınızı yazın... (Enter gönder, Shift+Enter yeni satır)',
+    copy:'Kopyala',copied:'Kopyalandı!',ollamaOff:'Ollama çalışmıyor',
+    noModels:"Yüklü model yok — Model Kütüphanesi'ni açın",
+    downloading:'İndiriliyor...',installed:'✓ Yüklü',install:'⬇ İndir',
+    installErr:'⚠ Hata',hwH:'🔥 Yüksek',hwM:'⚡ Orta',hwL:'🌱 Düşük',
+    stopped:'Durduruldu.',connErr:'Bağlantı hatası',
+    renamePrompt:'Yeni başlık:',
+    delConfirm:'Bu sohbeti silmek istiyor musunuz?',
+    clearConfirm:'Tüm geçmiş silinecek. Emin misiniz?',
+    noModelAlert:'Lütfen önce bir model seçin veya indirin.',
+    disclaimer:'NordGpT hatalar yapabilir. Önemli bilgileri doğrulayın.',
+    welcomeTitle:'NordGpT\'ye Hoş Geldiniz',
+    welcomeDesc:'Yerel AI asistanın. Gizliliğin korunur, internet gerekmez.',
+    chips:['Neler yapabilirsin?','Python scraper yaz','Siber güvenlik nedir?','SQL Injection anlat'],
+    chipMsgs:['Merhaba! Neler yapabilirsin?','Python ile web scraper yaz','Siber güvenlik nedir?','SQL injection nedir ve nasıl önlenir?'],
+    settings:'Ayarlar',tabLang:'🌐 Dil',tabModels:'📦 Modeller',tabUsers:'👥 Kullanıcılar',tabAbout:'ℹ️ Hakkında',
+    interfaceLang:'Arayüz Dili',interfaceLangDesc:'Menü ve butonların dili',
+    addUser:'Yeni Kullanıcı Ekle',username:'Kullanıcı adı',password:'Şifre (min 8)',
+    role:'Rol',logout:'Çıkış',
+    delUser:'Kullanıcıyı sil',delUserConfirm:u=>`${u} kullanıcısını silmek istiyor musunuz?`,
+    userCreated:'Kullanıcı oluşturuldu.',userDeleted:'Kullanıcı silindi.',
+    ollama:n=>`Ollama • ${n} model`,
+  },
+  en:{
+    newChat:'New Chat',tempChat:'Temp Chat',TEMP:'TEMP',
+    searchPlaceholder:'Search chats...',modelLibrary:'Model Library',
+    clearHistory:'Clear History',today:'Today',yesterday:'Yesterday',
+    lastWeek:'Last 7 Days',older:'Older',noChats:'No chats yet',
+    you:'You',assistant:'Assistant',
+    inputPlaceholder:'Type a message... (Enter to send, Shift+Enter for newline)',
+    copy:'Copy',copied:'Copied!',ollamaOff:'Ollama not running',
+    noModels:'No models installed — open Model Library',
+    downloading:'Downloading...',installed:'✓ Installed',install:'⬇ Install',
+    installErr:'⚠ Error',hwH:'🔥 High',hwM:'⚡ Medium',hwL:'🌱 Low',
+    stopped:'Stopped.',connErr:'Connection error',
+    renamePrompt:'New title:',
+    delConfirm:'Delete this chat?',
+    clearConfirm:'All history will be deleted. Sure?',
+    noModelAlert:'Please select or install a model first.',
+    disclaimer:'NordGpT can make mistakes. Verify important information.',
+    welcomeTitle:'Welcome to NordGpT',
+    welcomeDesc:'Your local AI assistant. Privacy preserved, no internet needed.',
+    chips:['What can you do?','Write a Python scraper','What is cybersecurity?','Explain SQL Injection'],
+    chipMsgs:['Hello! What can you do?','Write a web scraper in Python','What is cybersecurity?','What is SQL injection and how to prevent it?'],
+    settings:'Settings',tabLang:'🌐 Language',tabModels:'📦 Models',tabUsers:'👥 Users',tabAbout:'ℹ️ About',
+    interfaceLang:'Interface Language',interfaceLangDesc:'Language for menus and buttons',
+    addUser:'Add User',username:'Username',password:'Password (min 8)',
+    role:'Role',logout:'Logout',
+    delUser:'Delete user',delUserConfirm:u=>`Delete user ${u}?`,
+    userCreated:'User created.',userDeleted:'User deleted.',
+    ollama:n=>`Ollama • ${n} models`,
+  },
+  de:{
+    newChat:'Neuer Chat',tempChat:'Temp. Chat',TEMP:'TEMP',
+    searchPlaceholder:'Chats suchen...',modelLibrary:'Modell-Bibliothek',
+    clearHistory:'Verlauf löschen',today:'Heute',yesterday:'Gestern',
+    lastWeek:'Letzte 7 Tage',older:'Älter',noChats:'Noch keine Chats',
+    you:'Sie',assistant:'Assistent',
+    inputPlaceholder:'Nachricht... (Enter senden, Shift+Enter Zeile)',
+    copy:'Kopieren',copied:'Kopiert!',ollamaOff:'Ollama läuft nicht',
+    noModels:'Keine Modelle — Bibliothek öffnen',
+    downloading:'Wird geladen...',installed:'✓ Installiert',install:'⬇ Installieren',
+    installErr:'⚠ Fehler',hwH:'🔥 Hoch',hwM:'⚡ Mittel',hwL:'🌱 Niedrig',
+    stopped:'Gestoppt.',connErr:'Verbindungsfehler',
+    renamePrompt:'Neuer Titel:',delConfirm:'Chat löschen?',
+    clearConfirm:'Gesamter Verlauf wird gelöscht. Sicher?',
+    noModelAlert:'Bitte zuerst ein Modell auswählen.',
+    disclaimer:'NordGpT kann Fehler machen. Wichtige Infos prüfen.',
+    welcomeTitle:'Willkommen bei NordGpT',
+    welcomeDesc:'Dein lokaler KI-Assistent. Datenschutz gewahrt.',
+    chips:['Was kannst du?','Python Scraper','Was ist Cybersecurity?','SQL Injection'],
+    chipMsgs:['Hallo! Was kannst du?','Schreib einen Python-Scraper','Was ist Cybersecurity?','Was ist SQL-Injection?'],
+    settings:'Einstellungen',tabLang:'🌐 Sprache',tabModels:'📦 Modelle',tabUsers:'👥 Benutzer',tabAbout:'ℹ️ Über',
+    interfaceLang:'Sprache',interfaceLangDesc:'Sprache der Benutzeroberfläche',
+    addUser:'Benutzer hinzufügen',username:'Benutzername',password:'Passwort (min 8)',
+    role:'Rolle',logout:'Abmelden',
+    delUser:'Benutzer löschen',delUserConfirm:u=>`Benutzer ${u} löschen?`,
+    userCreated:'Benutzer erstellt.',userDeleted:'Benutzer gelöscht.',
+    ollama:n=>`Ollama • ${n} Modelle`,
+  },
+  fr:{
+    newChat:'Nouveau Chat',tempChat:'Chat Temp.',TEMP:'TEMP',
+    searchPlaceholder:'Rechercher...',modelLibrary:'Bibliothèque',
+    clearHistory:"Effacer l'historique",today:"Aujourd'hui",yesterday:'Hier',
+    lastWeek:'7 derniers jours',older:'Plus ancien',noChats:'Aucune conversation',
+    you:'Vous',assistant:'Assistant',
+    inputPlaceholder:'Écrivez un message... (Entrée envoyer)',
+    copy:'Copier',copied:'Copié!',ollamaOff:'Ollama hors ligne',
+    noModels:'Aucun modèle — ouvrir la bibliothèque',
+    downloading:'Téléchargement...',installed:'✓ Installé',install:'⬇ Installer',
+    installErr:'⚠ Erreur',hwH:'🔥 Haute',hwM:'⚡ Moyenne',hwL:'🌱 Basse',
+    stopped:'Arrêté.',connErr:'Erreur de connexion',
+    renamePrompt:'Nouveau titre:',delConfirm:'Supprimer ce chat?',
+    clearConfirm:"Tout l'historique sera supprimé. Sûr?",
+    noModelAlert:"Veuillez d'abord sélectionner un modèle.",
+    disclaimer:'NordGpT peut faire des erreurs. Vérifiez les infos importantes.',
+    welcomeTitle:'Bienvenue sur NordGpT',
+    welcomeDesc:'Votre assistant IA local. Confidentialité préservée.',
+    chips:['Que peux-tu faire?','Scraper Python','Cybersécurité?','SQL Injection'],
+    chipMsgs:['Bonjour! Que peux-tu faire?','Écris un scraper Python',"Qu'est-ce que la cybersécurité?",'Explique SQL injection'],
+    settings:'Paramètres',tabLang:'🌐 Langue',tabModels:'📦 Modèles',tabUsers:'👥 Utilisateurs',tabAbout:'ℹ️ À propos',
+    interfaceLang:'Langue',interfaceLangDesc:"Langue de l'interface",
+    addUser:'Ajouter Utilisateur',username:"Nom d'utilisateur",password:'Mot de passe (min 8)',
+    role:'Rôle',logout:'Déconnexion',
+    delUser:'Supprimer',delUserConfirm:u=>`Supprimer ${u}?`,
+    userCreated:'Utilisateur créé.',userDeleted:'Utilisateur supprimé.',
+    ollama:n=>`Ollama • ${n} modèles`,
+  },
+  es:{
+    newChat:'Nuevo Chat',tempChat:'Chat Temporal',TEMP:'TEMP',
+    searchPlaceholder:'Buscar chats...',modelLibrary:'Biblioteca de Modelos',
+    clearHistory:'Borrar Historial',today:'Hoy',yesterday:'Ayer',
+    lastWeek:'Últimos 7 días',older:'Más antiguo',noChats:'Sin conversaciones',
+    you:'Tú',assistant:'Asistente',
+    inputPlaceholder:'Escribe un mensaje... (Enter enviar)',
+    copy:'Copiar',copied:'¡Copiado!',ollamaOff:'Ollama no está ejecutando',
+    noModels:'Sin modelos — abrir biblioteca',
+    downloading:'Descargando...',installed:'✓ Instalado',install:'⬇ Instalar',
+    installErr:'⚠ Error',hwH:'🔥 Alto',hwM:'⚡ Medio',hwL:'🌱 Bajo',
+    stopped:'Detenido.',connErr:'Error de conexión',
+    renamePrompt:'Nuevo título:',delConfirm:'¿Eliminar este chat?',
+    clearConfirm:'Todo el historial será eliminado. ¿Seguro?',
+    noModelAlert:'Por favor, selecciona un modelo primero.',
+    disclaimer:'NordGpT puede cometer errores. Verifica información importante.',
+    welcomeTitle:'Bienvenido a NordGpT',
+    welcomeDesc:'Tu asistente de IA local. Privacidad preservada.',
+    chips:['¿Qué puedes hacer?','Scraper Python','¿Ciberseguridad?','SQL Injection'],
+    chipMsgs:['¡Hola! ¿Qué puedes hacer?','Escribe un scraper en Python','¿Qué es la ciberseguridad?','Explica SQL injection'],
+    settings:'Ajustes',tabLang:'🌐 Idioma',tabModels:'📦 Modelos',tabUsers:'👥 Usuarios',tabAbout:'ℹ️ Acerca de',
+    interfaceLang:'Idioma de interfaz',interfaceLangDesc:'Idioma de menús y botones',
+    addUser:'Añadir Usuario',username:'Nombre de usuario',password:'Contraseña (min 8)',
+    role:'Rol',logout:'Cerrar sesión',
+    delUser:'Eliminar',delUserConfirm:u=>`¿Eliminar usuario ${u}?`,
+    userCreated:'Usuario creado.',userDeleted:'Usuario eliminado.',
+    ollama:n=>`Ollama • ${n} modelos`,
+  },
+};
+
+let lang = localStorage.getItem('nordgpt_lang') || 'tr';
+
+function t(key, ...args) {
+  const v = i18n[lang]?.[key] ?? i18n['en']?.[key] ?? key;
+  return typeof v === 'function' ? v(...args) : v;
+}
+
+function applyI18n() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.dataset.i18n;
+    const attr = el.dataset.i18nAttr;
+    const val = t(k);
+    if (attr) el.setAttribute(attr, val);
+    else el.textContent = val;
+  });
+  // Language selector sync
+  const sel = document.getElementById('lang-sel');
+  if (sel) sel.value = lang;
+}
+
+function changeLang(newLang) {
+  lang = newLang;
+  localStorage.setItem('nordgpt_lang', lang);
+  applyI18n();
+  // Re-render dynamic parts
+  renderSidebar(state.chats);
+  renderEmptyState();
+}
+
+// ═══════════════════════════════════════════════════════
+// Markdown renderer
+// ═══════════════════════════════════════════════════════
+marked.setOptions({ breaks: true, gfm: true });
+const renderer = new marked.Renderer();
+renderer.code = (code, lang) => {
+  const l = lang || 'plaintext';
+  let hi;
+  try { hi = hljs.highlight(code, { language: l }).value; }
+  catch { hi = hljs.highlightAuto(code).value; }
+  const id = 'c' + Math.random().toString(36).slice(2);
+  return `<pre><div class="code-hdr"><span>${l}</span><button class="copy-btn" onclick="copyCode('${id}',this)">${t('copy')}</button></div><code id="${id}" class="hljs language-${l}">${hi}</code></pre>`;
+};
+marked.use({ renderer });
+
+function renderMd(text) { return marked.parse(text || ''); }
+
+function copyCode(id, btn) {
+  navigator.clipboard.writeText(document.getElementById(id)?.innerText || '').then(() => {
+    btn.textContent = t('copied'); btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = t('copy'); btn.classList.remove('ok'); }, 2000);
+  });
+}
+function copyText(text) { navigator.clipboard.writeText(text); }
+
+// ═══════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════
+const state = {
+  chatId: null, model: null, tempMode: false,
+  streaming: false, chats: [], models: [],
+  user: null, abort: null,
+};
+
+function esc(s) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escA(s) { return (s||'').replace(/'/g,"\\'"); }
+
+// ═══════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════
+async function init() {
+  // Check auth first
+  try {
+    const r = await fetch('/auth/me', { credentials: 'same-origin' });
+    if (!r.ok) { window.location.replace('/login'); return; }
+    state.user = await r.json();
+  } catch { window.location.replace('/login'); return; }
+
+  // Show user info
+  document.getElementById('uname').textContent = state.user.username;
+  const badge = document.getElementById('urole-badge');
+  badge.textContent = state.user.role;
+  badge.className = 'role-badge ' + (state.user.role === 'admin' ? 'admin-b' : '');
+
+  // Users tab visible only for admin
+  document.getElementById('users-tab-btn').style.display =
+    state.user.role === 'admin' ? '' : 'none';
+
+  // Load config for server-side language preference
+  try {
+    const cfg = await fetch('/api/config', { credentials: 'same-origin' });
+    if (cfg.ok) {
+      const data = await cfg.json();
+      // Only use server lang if user hasn't overridden locally
+      if (!localStorage.getItem('nordgpt_lang') && data.language) {
+        lang = data.language;
+      }
+    }
+  } catch {}
+
+  applyI18n();
+  await Promise.all([checkOllama(), loadModels(), loadHistory()]);
+  renderEmptyState();
+}
+
+// ═══════════════════════════════════════════════════════
+// Auth
+// ═══════════════════════════════════════════════════════
+async function doLogout() {
+  await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  window.location.replace('/login');
+}
+
+// ═══════════════════════════════════════════════════════
+// Ollama status
+// ═══════════════════════════════════════════════════════
+async function checkOllama() {
+  try {
+    const r = await fetch('/api/ollama/status', { credentials: 'same-origin' });
+    const d = await r.json();
+    document.getElementById('sdot').className = 'sdot ' + (d.running ? 'on' : 'off');
+    document.getElementById('stxt').textContent =
+      d.running ? t('ollama', d.model_count) : t('ollamaOff');
+  } catch {
+    document.getElementById('sdot').className = 'sdot off';
+    document.getElementById('stxt').textContent = t('ollamaOff');
+  }
+}
+setInterval(checkOllama, 30000);
+
+// ═══════════════════════════════════════════════════════
+// Models
+// ═══════════════════════════════════════════════════════
+async function loadModels() {
+  try {
+    const r = await fetch('/api/models', { credentials: 'same-origin' });
+    const d = await r.json();
+    state.models = (d.models || []).map(m => m.name);
+    const sel = document.getElementById('model-select');
+    sel.innerHTML = '';
+    if (!state.models.length) {
+      sel.innerHTML = `<option value="">${t('noModels')}</option>`; return;
+    }
+    state.models.forEach(n => {
+      const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o);
+    });
+    const saved = localStorage.getItem('nordgpt_model');
+    if (saved && state.models.includes(saved)) sel.value = saved;
+    state.model = sel.value;
+  } catch {}
+}
+
+function onModelChange() {
+  state.model = document.getElementById('model-select').value;
+  localStorage.setItem('nordgpt_model', state.model);
+}
+
+// ═══════════════════════════════════════════════════════
+// History
+// ═══════════════════════════════════════════════════════
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/history', { credentials: 'same-origin' });
+    state.chats = await r.json();
+    renderSidebar(state.chats);
+  } catch {}
+}
+
+function groupChats(chats) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+  const week = new Date(today); week.setDate(week.getDate() - 7);
+  const g = { today:[], yesterday:[], week:[], older:[] };
+  chats.forEach(c => {
+    const d = new Date(c.updated_at);
+    if (d >= today) g.today.push(c);
+    else if (d >= yesterday) g.yesterday.push(c);
+    else if (d >= week) g.week.push(c);
+    else g.older.push(c);
+  });
+  return g;
+}
+
+function renderSidebar(chats) {
+  const list = document.getElementById('chat-list');
+  list.innerHTML = '';
+  if (!chats.length) {
+    list.innerHTML = `<div style="padding:20px 12px;color:var(--text2);font-size:13px;text-align:center">${t('noChats')}</div>`;
+    return;
+  }
+  const g = groupChats(chats);
+  const labels = { today: t('today'), yesterday: t('yesterday'), week: t('lastWeek'), older: t('older') };
+  Object.entries(g).forEach(([key, items]) => {
+    if (!items.length) return;
+    list.insertAdjacentHTML('beforeend', `<div class="grp-label">${labels[key]}</div>`);
+    items.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'chat-item' + (c.id === state.chatId ? ' active' : '');
+      div.dataset.id = c.id;
+      div.innerHTML = `
+        <span style="font-size:13px">💬</span>
+        <span class="ci-title">${esc(c.title)}</span>
+        <div class="ci-actions">
+          <button class="icon-btn" title="${t('renamePrompt')}" onclick="renameChat(event,'${c.id}','${escA(c.title)}')">✏️</button>
+          <button class="icon-btn danger" title="Sil" onclick="deleteChat(event,'${c.id}')">🗑️</button>
+        </div>`;
+      div.addEventListener('click', () => openChat(c.id));
+      list.appendChild(div);
+    });
+  });
+}
+
+function filterChats() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  renderSidebar(q ? state.chats.filter(c => c.title.toLowerCase().includes(q)) : state.chats);
+}
+
+// ═══════════════════════════════════════════════════════
+// Chat actions
+// ═══════════════════════════════════════════════════════
+function newChat() {
+  state.chatId = null;
+  document.getElementById('msgs').innerHTML = '';
+  renderEmptyState();
+  highlightActive(null);
+  document.getElementById('input').focus();
+  closeSidebar();
+}
+
+function renderEmptyState() {
+  document.getElementById('msgs').innerHTML = `
+    <div id="empty">
+      <div style="font-size:48px">🤖</div>
+      <h2>${t('welcomeTitle')}</h2>
+      <p>${t('welcomeDesc')}</p>
+      <div class="chips">
+        ${t('chips').map((c,i)=>`<span class="chip" onclick="sendSuggestion(${i})">${esc(c)}</span>`).join('')}
+      </div>
+    </div>`;
+}
+
+async function openChat(id) {
+  try {
+    const r = await fetch(`/api/history/${id}`, { credentials: 'same-origin' });
+    if (r.status === 401) { window.location.replace('/login'); return; }
+    if (!r.ok) return;
+    const chat = await r.json();
+    state.chatId = id;
+    renderMessages(chat.messages);
+    highlightActive(id);
+    if (chat.model && state.models.includes(chat.model)) {
+      document.getElementById('model-select').value = chat.model;
+      state.model = chat.model;
+    }
+    scrollBottom();
+    closeSidebar();
+  } catch {}
+}
+
+function highlightActive(id) {
+  document.querySelectorAll('.chat-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.id === id));
+}
+
+function renderMessages(msgs) {
+  document.getElementById('msgs').innerHTML = '';
+  msgs.forEach(m => appendMsg(m.role, m.content));
+}
+
+function appendMsg(role, content) {
+  document.getElementById('empty')?.remove();
+  const msgs = document.getElementById('msgs');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-av">${role==='user'?'👤':'🤖'}</div>
+    <div class="msg-body">
+      <div class="msg-role">${role==='user'?t('you'):t('assistant')}</div>
+      <div class="msg-content">${role==='assistant'?renderMd(content):esc(content).replace(/\n/g,'<br>')}</div>
+      ${role==='assistant'?`<div class="msg-actions"><button class="icon-btn" onclick="copyText(this.closest('.msg').querySelector('.msg-content').innerText)" title="${t('copy')}">📋</button></div>`:''}
+    </div>`;
+  msgs.appendChild(div);
+  return div;
+}
+
+function scrollBottom() {
+  const w = document.getElementById('msgs-wrap');
+  w.scrollTop = w.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════
+// Send / Stream
+// ═══════════════════════════════════════════════════════
+async function sendMessage() {
+  const inp = document.getElementById('input');
+  const text = inp.value.trim();
+  if (!text || state.streaming) return;
+  const model = document.getElementById('model-select').value;
+  if (!model) { alert(t('noModelAlert')); return; }
+
+  inp.value = ''; autoResize(inp);
+  state.streaming = true; updateBtns(true);
+
+  appendMsg('user', text);
+  scrollBottom();
+
+  const aDiv = appendMsg('assistant', '');
+  const contentEl = aDiv.querySelector('.msg-content');
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  contentEl.appendChild(cursor);
+
+  state.abort = new AbortController();
+  let buf = '';
+
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ chat_id: state.chatId, model, message: text, temporary: state.tempMode }),
+      signal: state.abort.signal,
+    });
+
+    if (r.status === 401) { window.location.replace('/login'); return; }
+
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let partial = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      partial += dec.decode(value, { stream: true });
+      const lines = partial.split('\n');
+      partial = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+        if (evt.type === 'meta') {
+          state.chatId = evt.chat_id;
+          if (!state.tempMode) { await loadHistory(); highlightActive(evt.chat_id); }
+        } else if (evt.type === 'token') {
+          buf += evt.content;
+          cursor.remove(); contentEl.innerHTML = renderMd(buf); contentEl.appendChild(cursor);
+          scrollBottom();
+        } else if (evt.type === 'error') {
+          cursor.remove(); contentEl.innerHTML = `<span style="color:var(--danger)">⚠️ ${esc(evt.content)}</span>`;
+        } else if (evt.type === 'done') {
+          cursor.remove(); contentEl.innerHTML = renderMd(buf); scrollBottom();
+        }
+      }
+    }
+  } catch (e) {
+    cursor.remove();
+    if (e.name === 'AbortError') {
+      contentEl.innerHTML = buf ? renderMd(buf) : `<em style="color:var(--text2)">${t('stopped')}</em>`;
+    } else {
+      contentEl.innerHTML = `<span style="color:var(--danger)">⚠️ ${t('connErr')}: ${esc(e.message)}</span>`;
+    }
+  }
+
+  state.streaming = false; state.abort = null; updateBtns(false);
+}
+
+function stopGen() { state.abort?.abort(); }
+
+function updateBtns(streaming) {
+  document.getElementById('send-btn').disabled = streaming;
+  document.getElementById('stop-btn').classList.toggle('on', streaming);
+}
+
+function sendSuggestion(idx) {
+  document.getElementById('input').value = t('chipMsgs')[idx];
+  sendMessage();
+}
+
+// ═══════════════════════════════════════════════════════
+// Temp mode
+// ═══════════════════════════════════════════════════════
+function toggleTemp() {
+  state.tempMode = document.getElementById('temp-toggle').checked;
+  document.getElementById('temp-badge').classList.toggle('on', state.tempMode);
+  if (state.tempMode) { state.chatId = null; highlightActive(null); }
+}
+
+// ═══════════════════════════════════════════════════════
+// Delete / Rename / Clear
+// ═══════════════════════════════════════════════════════
+async function deleteChat(e, id) {
+  e.stopPropagation();
+  if (!confirm(t('delConfirm'))) return;
+  await fetch(`/api/history/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+  if (state.chatId === id) newChat();
+  await loadHistory();
+}
+
+async function renameChat(e, id, cur) {
+  e.stopPropagation();
+  const title = prompt(t('renamePrompt'), cur);
+  if (!title || title === cur) return;
+  await fetch(`/api/history/${id}`, {
+    method: 'PATCH', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  await loadHistory();
+}
+
+async function clearAllHistory() {
+  if (!confirm(t('clearConfirm'))) return;
+  await fetch('/api/history', { method: 'DELETE', credentials: 'same-origin' });
+  newChat(); await loadHistory();
+}
+
+// ═══════════════════════════════════════════════════════
+// Settings modal
+// ═══════════════════════════════════════════════════════
+function openSettings(tabId) {
+  document.getElementById('settings-overlay').classList.add('open');
+  if (tabId) {
+    const btn = document.querySelector(`.tab[onclick*="${tabId}"]`);
+    if (btn) switchTab(tabId, btn);
+  }
+}
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  btn.classList.add('active');
+  if (tabId === 'users-tab') loadUsersList();
+  if (tabId === 'models-tab') openModelLibrary();
+}
+
+// ═══════════════════════════════════════════════════════
+// User management (admin)
+// ═══════════════════════════════════════════════════════
+async function loadUsersList() {
+  const el = document.getElementById('users-list');
+  try {
+    const r = await fetch('/api/users', { credentials: 'same-origin' });
+    if (!r.ok) { el.innerHTML = '<div style="color:var(--danger);font-size:13px">Erişim reddedildi</div>'; return; }
+    const users = await r.json();
+    el.innerHTML = users.map(u => `
+      <div class="user-card">
+        <div>
+          <div class="uc-name">${esc(u.username)}</div>
+          <div class="uc-meta">${u.created_at ? new Date(u.created_at).toLocaleDateString() : ''}</div>
+        </div>
+        <span class="role-pill ${u.role}">${u.role}</span>
+        ${u.username !== state.user.username
+          ? `<button class="btn-sm danger" onclick="removeUser('${escA(u.username)}')" title="${t('delUser')}">🗑️</button>`
+          : '<span style="font-size:12px;color:var(--text2)">(sen)</span>'}
+      </div>`).join('');
+  } catch {
+    el.innerHTML = '<div style="color:var(--danger);font-size:13px">Yükleme hatası</div>';
+  }
+}
+
+async function removeUser(username) {
+  if (!confirm(t('delUserConfirm', username))) return;
+  const r = await fetch(`/api/users/${username}`, { method: 'DELETE', credentials: 'same-origin' });
+  const msg = document.getElementById('user-form-msg');
+  if (r.ok) {
+    showFormMsg(t('userDeleted'), true);
+    await loadUsersList();
+  } else {
+    const d = await r.json().catch(()=>({}));
+    showFormMsg(d.detail || 'Hata', false);
+  }
+}
+
+async function createUser() {
+  const uname = document.getElementById('new-uname').value.trim();
+  const upass = document.getElementById('new-upass').value;
+  const urole = document.getElementById('new-urole').value;
+
+  if (!uname || !upass) { showFormMsg('Tüm alanları doldurun.', false); return; }
+
+  const r = await fetch('/api/users', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: uname, password: upass, role: urole }),
+  });
+  const d = await r.json().catch(()=>({}));
+
+  if (r.ok) {
+    showFormMsg(t('userCreated'), true);
+    document.getElementById('new-uname').value = '';
+    document.getElementById('new-upass').value = '';
+    await loadUsersList();
+  } else {
+    showFormMsg(d.detail || 'Hata oluştu.', false);
+  }
+}
+
+function showFormMsg(msg, ok) {
+  const el = document.getElementById('user-form-msg');
+  el.textContent = msg;
+  el.className = 'form-msg ' + (ok ? 'ok' : 'err');
+  setTimeout(() => { el.className = 'form-msg'; }, 4000);
+}
+
+// ═══════════════════════════════════════════════════════
+// Model Library Modal
+// ═══════════════════════════════════════════════════════
+let catalog = null;
+let activeCat = null;
+
+async function openModelLibrary() {
+  if (!catalog) {
+    const r = await fetch('/api/catalog', { credentials: 'same-origin' });
+    catalog = await r.json();
+  }
+  renderCatalog();
+}
+
+function renderCatalog() {
+  const body = document.getElementById('lib-body');
+  const cats = catalog.categories;
+  activeCat = activeCat || Object.keys(cats)[0];
+  const cat = cats[activeCat];
+
+  const tierLabels = {
+    high: t('hwH') + ' (32GB+)',
+    medium: t('hwM') + ' (16GB+)',
+    low: t('hwL') + ' (<16GB)',
+  };
+
+  const tabs = Object.entries(cats).map(([k,c]) =>
+    `<span class="cat-tab ${k===activeCat?'active':''}" onclick="switchCat('${k}')">${c.icon} ${c.name}</span>`
+  ).join('');
+
+  let cards = '';
+  Object.entries(cat.models).forEach(([tier, models]) => {
+    cards += `<div class="tier-lbl">${tierLabels[tier]}</div>`;
+    models.forEach(m => {
+      const sid = 'mc_' + m.name.replace(/[:.]/g,'_');
+      const inst = state.models.some(im => im===m.name || im.startsWith(m.name.split(':')[0]));
+      cards += `
+        <div class="model-card" id="${sid}">
+          <div class="mc-info">
+            <div class="mc-name">${esc(m.name)}</div>
+            <div class="mc-desc">${esc(m.desc)}</div>
+            <div class="mc-prog" id="p_${sid}"><div class="mc-bar" id="b_${sid}"></div></div>
+          </div>
+          <span class="mc-size">${esc(m.size)}</span>
+          <button class="btn-pull ${inst?'inst':''}" id="btn_${sid}"
+            ${inst?'':'onclick="pullModel(\''+escA(m.name)+'\')"'}>
+            ${inst?t('installed'):t('install')}
+          </button>
+        </div>`;
+    });
+  });
+
+  body.innerHTML = `<div class="cat-tabs">${tabs}</div><p style="font-size:13px;color:var(--text2);margin-bottom:12px">${esc(cat.description)}</p>${cards}`;
+}
+
+function switchCat(k) { activeCat = k; renderCatalog(); }
+
+async function pullModel(name) {
+  const sid = 'mc_' + name.replace(/[:.]/g,'_');
+  const btn = document.getElementById(`btn_${sid}`);
+  const prog = document.getElementById(`p_${sid}`);
+  const bar = document.getElementById(`b_${sid}`);
+  if (!btn) return;
+  btn.textContent = t('downloading'); btn.className = 'btn-pull pulling'; btn.onclick = null;
+  prog.style.display = 'block';
+
+  try {
+    const r = await fetch('/api/pull', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name }),
+    });
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let partial = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      partial += dec.decode(value, { stream: true });
+      const lines = partial.split('\n'); partial = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.completed && ev.total) {
+            const pct = Math.round(ev.completed / ev.total * 100);
+            bar.style.width = pct + '%'; btn.textContent = pct + '%';
+          } else if (ev.status === 'success' || ev.status === 'complete') {
+            btn.textContent = t('installed'); btn.className = 'btn-pull inst';
+            bar.style.width = '100%';
+            await loadModels(); await checkOllama();
+          }
+        } catch {}
+      }
+    }
+  } catch {
+    btn.textContent = t('installErr'); btn.className = 'btn-pull';
+    btn.onclick = () => pullModel(name);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Modal helpers
+// ═══════════════════════════════════════════════════════
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeOverlay(e, id) { if (e.target.classList.contains('overlay')) closeModal(id); }
+
+// ═══════════════════════════════════════════════════════
+// UI helpers
+// ═══════════════════════════════════════════════════════
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
+
+// ═══════════════════════════════════════════════════════
+// Boot
+// ═══════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>

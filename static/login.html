@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NordGpT — Giriş</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #212121;
+  color: #ececec;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-wrap {
+  width: 100%;
+  max-width: 380px;
+}
+
+.logo {
+  text-align: center;
+  font-size: 32px;
+  font-weight: 800;
+  color: #10a37f;
+  letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+.logo span { color: #ececec; }
+
+.tagline {
+  text-align: center;
+  font-size: 13px;
+  color: #8e8ea0;
+  margin-bottom: 32px;
+}
+
+.card {
+  background: #2f2f2f;
+  border: 1px solid #3d3d3d;
+  border-radius: 14px;
+  padding: 28px 24px;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: #8e8ea0;
+  margin-bottom: 5px;
+}
+
+input {
+  width: 100%;
+  background: #212121;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  padding: 11px 14px;
+  color: #ececec;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus { border-color: #10a37f; }
+input::placeholder { color: #555; }
+
+.btn-login {
+  width: 100%;
+  background: #10a37f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn-login:hover { background: #0d8a6b; }
+.btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.error-msg {
+  background: rgba(229, 83, 83, 0.1);
+  border: 1px solid rgba(229, 83, 83, 0.4);
+  color: #e55353;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-top: 12px;
+  display: none;
+  text-align: center;
+}
+.error-msg.show { display: block; }
+
+.attempts-warn {
+  font-size: 12px;
+  color: #f59e0b;
+  text-align: center;
+  margin-top: 10px;
+  display: none;
+}
+
+.footer-note {
+  text-align: center;
+  font-size: 12px;
+  color: #555;
+  margin-top: 20px;
+}
+</style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="logo">Nord<span>GpT</span></div>
+  <div class="tagline">Yerel AI Asistanı — Gizliliğin Güvende</div>
+
+  <div class="card">
+    <div class="card-title">Giriş Yap</div>
+
+    <form id="login-form" onsubmit="doLogin(event)" autocomplete="on" novalidate>
+      <div class="field">
+        <label for="username">Kullanıcı Adı</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          autocomplete="username"
+          placeholder="admin"
+          maxlength="64"
+          required
+        >
+      </div>
+      <div class="field">
+        <label for="password">Şifre</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          placeholder="••••••••"
+          maxlength="128"
+          required
+        >
+      </div>
+
+      <button type="submit" class="btn-login" id="submit-btn">Giriş Yap</button>
+    </form>
+
+    <div class="error-msg" id="error-msg"></div>
+    <div class="attempts-warn" id="attempts-warn"></div>
+  </div>
+
+  <div class="footer-note">
+    Yeni hesap oluşturma sadece admin tarafından yapılabilir.
+  </div>
+</div>
+
+<script>
+let failedAttempts = 0;
+
+async function doLogin(e) {
+  e.preventDefault();
+
+  const btn = document.getElementById('submit-btn');
+  const errEl = document.getElementById('error-msg');
+  const warnEl = document.getElementById('attempts-warn');
+
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+
+  // Client-side basic validation (not a security measure — server validates too)
+  if (!username || !password) {
+    showError('Kullanıcı adı ve şifre zorunludur.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Giriş yapılıyor...';
+  errEl.classList.remove('show');
+
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ username, password }),
+    });
+
+    if (res.ok) {
+      window.location.replace('/');
+      return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+    failedAttempts++;
+
+    if (res.status === 429) {
+      showError('Çok fazla başarısız deneme. Lütfen 5 dakika bekleyin.');
+      btn.disabled = true;
+      btn.textContent = 'Kilitlendi';
+      return;
+    }
+
+    if (res.status === 401) {
+      // Generic message — don't reveal which field is wrong
+      showError('Kullanıcı adı veya şifre hatalı.');
+    } else {
+      showError(data.detail || 'Giriş yapılamadı. Tekrar deneyin.');
+    }
+
+    if (failedAttempts >= 3) {
+      warnEl.style.display = 'block';
+      warnEl.textContent = `⚠ ${failedAttempts} başarısız deneme. ${5 - failedAttempts} deneme hakkın kaldı.`;
+    }
+
+  } catch (err) {
+    showError('Sunucuya bağlanılamadı. NordGpT çalışıyor mu?');
+  } finally {
+    if (!btn.textContent.includes('Kilitlendi')) {
+      btn.disabled = false;
+      btn.textContent = 'Giriş Yap';
+    }
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+// If already logged in, redirect
+fetch('/auth/me', { credentials: 'same-origin' })
+  .then(r => { if (r.ok) window.location.replace('/'); })
+  .catch(() => {});
+</script>
+</body>
+</html>

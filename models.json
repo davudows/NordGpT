@@ -1,0 +1,134 @@
+{
+  "categories": {
+    "cybersecurity": {
+      "name": "Siber Güvenlik",
+      "icon": "🔐",
+      "description": "Penetration testing, güvenlik analizi, CTF ve zafiyet araştırması",
+      "system_prompt": "You are an expert cybersecurity assistant with deep knowledge in penetration testing, vulnerability analysis, CTF challenges, network security, malware analysis, and defensive security practices. Provide detailed, technical responses.",
+      "models": {
+        "high": [
+          {"name": "llama3.1:70b", "size": "~40GB", "desc": "En güçlü genel model, derin analiz"},
+          {"name": "mixtral:8x7b", "size": "~26GB", "desc": "Güçlü mixture-of-experts"},
+          {"name": "deepseek-coder:33b", "size": "~19GB", "desc": "Güçlü kod & exploit analizi"}
+        ],
+        "medium": [
+          {"name": "llama3.1:8b", "size": "~4.7GB", "desc": "Hızlı ve yetenekli"},
+          {"name": "mistral:7b", "size": "~4.1GB", "desc": "Verimli ve akıllı"},
+          {"name": "codellama:13b", "size": "~7.4GB", "desc": "Kod odaklı, exploit geliştirme"}
+        ],
+        "low": [
+          {"name": "phi3:mini", "size": "~2.3GB", "desc": "Düşük kaynaklı, yetenekli"},
+          {"name": "deepseek-coder:1.3b", "size": "~776MB", "desc": "Minimal kaynak, kod analizi"},
+          {"name": "tinyllama", "size": "~638MB", "desc": "En düşük gereksinim"}
+        ]
+      }
+    },
+    "finance": {
+      "name": "Finans & Ekonomi",
+      "icon": "📈",
+      "description": "Finansal analiz, trading stratejileri ve ekonomi",
+      "system_prompt": "You are an expert financial analyst and economist. Provide detailed analysis on markets, trading strategies, economic indicators, and financial modeling. Always note that this is not financial advice.",
+      "models": {
+        "high": [
+          {"name": "llama3.1:70b", "size": "~40GB", "desc": "Derinlemesine finansal analiz"},
+          {"name": "mixtral:8x7b", "size": "~26GB", "desc": "Güçlü çoklu-uzman modeli"},
+          {"name": "qwen2.5:72b", "size": "~41GB", "desc": "Güçlü Qwen modeli"}
+        ],
+        "medium": [
+          {"name": "llama3.1:8b", "size": "~4.7GB", "desc": "Hızlı finans asistanı"},
+          {"name": "mistral:7b", "size": "~4.1GB", "desc": "Dengeli performans"},
+          {"name": "qwen2.5:7b", "size": "~4.4GB", "desc": "Çok dilli, finans odaklı"}
+        ],
+        "low": [
+          {"name": "phi3:mini", "size": "~2.3GB", "desc": "Temel finans soruları"},
+          {"name": "gemma2:2b", "size": "~1.6GB", "desc": "Minimal kaynak"}
+        ]
+      }
+    },
+    "coding": {
+      "name": "Yazılım Geliştirme",
+      "icon": "💻",
+      "description": "Kod yazma, debug, code review ve mimari tasarım",
+      "system_prompt": "You are an expert software engineer. Help with coding, debugging, code review, architecture design, and best practices. Provide clear, well-commented code examples.",
+      "models": {
+        "high": [
+          {"name": "deepseek-coder-v2:16b", "size": "~9GB", "desc": "En iyi kod modeli"},
+          {"name": "codellama:34b", "size": "~19GB", "desc": "Güçlü kod asistanı"},
+          {"name": "starcoder2:15b", "size": "~9GB", "desc": "80+ dil desteği"}
+        ],
+        "medium": [
+          {"name": "codellama:13b", "size": "~7.4GB", "desc": "Dengeli kod modeli"},
+          {"name": "deepseek-coder:6.7b", "size": "~3.8GB", "desc": "Hızlı kod tamamlama"},
+          {"name": "starcoder2:7b", "size": "~4GB", "desc": "Verimli kod asistanı"}
+        ],
+        "low": [
+          {"name": "deepseek-coder:1.3b", "size": "~776MB", "desc": "Minimal kaynaklı kod"},
+          {"name": "phi3:mini", "size": "~2.3GB", "desc": "Kod destekli genel model"}
+        ]
+      }
+    },
+    "general": {
+      "name": "Genel Kullanım",
+      "icon": "🤖",
+      "description": "Günlük kullanım, araştırma ve genel sorular",
+      "system_prompt": "You are a helpful, harmless, and honest AI assistant. Answer questions clearly and concisely, and be honest when you don't know something.",
+      "models": {
+        "high": [
+          {"name": "llama3.1:70b", "size": "~40GB", "desc": "En güçlü genel model"},
+          {"name": "llama3.2:90b", "size": "~55GB", "desc": "En büyük Llama modeli"},
+          {"name": "mixtral:8x7b", "size": "~26GB", "desc": "Güçlü MoE modeli"}
+        ],
+        "medium": [
+          {"name": "llama3.1:8b", "size": "~4.7GB", "desc": "Hızlı genel asistan"},
+          {"name": "llama3.2:3b", "size": "~2GB", "desc": "Hafif ve yetenekli"},
+          {"name": "mistral:7b", "size": "~4.1GB", "desc": "Dengeli performans"}
+        ],
+        "low": [
+          {"name": "phi3:mini", "size": "~2.3GB", "desc": "Küçük ama güçlü"},
+          {"name": "gemma2:2b", "size": "~1.6GB", "desc": "Google'ın hafif modeli"},
+          {"name": "tinyllama", "size": "~638MB", "desc": "En minimal model"}
+        ]
+      }
+    },
+    "creative": {
+      "name": "Yaratıcı Yazarlık",
+      "icon": "✍️",
+      "description": "Hikaye yazma, şiir, senaryo ve içerik üretimi",
+      "system_prompt": "You are a creative writing assistant with expertise in storytelling, poetry, screenwriting, and content creation. Be imaginative, engaging, and help bring creative visions to life.",
+      "models": {
+        "high": [
+          {"name": "llama3.1:70b", "size": "~40GB", "desc": "En yaratıcı ve akıcı"},
+          {"name": "mixtral:8x7b", "size": "~26GB", "desc": "Çok yönlü yaratıcı model"}
+        ],
+        "medium": [
+          {"name": "llama3.1:8b", "size": "~4.7GB", "desc": "Yaratıcı ve akıcı"},
+          {"name": "mistral:7b", "size": "~4.1GB", "desc": "İyi yaratıcı yazı"}
+        ],
+        "low": [
+          {"name": "phi3:mini", "size": "~2.3GB", "desc": "Temel yaratıcı yardım"},
+          {"name": "gemma2:2b", "size": "~1.6GB", "desc": "Minimal yaratıcı asistan"}
+        ]
+      }
+    },
+    "data_science": {
+      "name": "Veri Bilimi & AI",
+      "icon": "📊",
+      "description": "Makine öğrenimi, veri analizi ve istatistik",
+      "system_prompt": "You are an expert data scientist and machine learning engineer. Help with data analysis, statistical modeling, ML algorithms, Python/R code, and AI research.",
+      "models": {
+        "high": [
+          {"name": "llama3.1:70b", "size": "~40GB", "desc": "Derin veri analizi"},
+          {"name": "deepseek-coder-v2:16b", "size": "~9GB", "desc": "Güçlü ML kodu"}
+        ],
+        "medium": [
+          {"name": "llama3.1:8b", "size": "~4.7GB", "desc": "Dengeli veri asistanı"},
+          {"name": "codellama:13b", "size": "~7.4GB", "desc": "Kod odaklı"}
+        ],
+        "low": [
+          {"name": "phi3:mini", "size": "~2.3GB", "desc": "Temel veri soruları"},
+          {"name": "deepseek-coder:1.3b", "size": "~776MB", "desc": "Minimal kod yardımı"}
+        ]
+      }
+    }
+  }
+}
