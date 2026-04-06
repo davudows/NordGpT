@@ -528,7 +528,10 @@ users.insert(0, {
 users_file.write_text(json.dumps(users, indent=2, ensure_ascii=False))
 print("OK:" + username)
 PYEOF
-)
+
+  local result
+  result=$(printf '%s\n%s\n' "$adm_user" "$adm_pass" | "$VENV_DIR/bin/python3" "$tmpscript")
+  rm -f "$tmpscript"
 
   if [[ "$result" == OK:* ]]; then
     local created_user="${result#OK:}"
