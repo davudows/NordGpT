@@ -190,6 +190,20 @@ select.setting-sel:focus{border-color:var(--accent)}
 .form-msg.ok{background:rgba(16,163,127,.1);border:1px solid rgba(16,163,127,.3);color:var(--accent);display:block}
 .form-msg.err{background:rgba(229,83,83,.1);border:1px solid rgba(229,83,83,.3);color:var(--danger);display:block}
 
+/* ── File attachments ── */
+.attach-bar{max-width:760px;margin:0 auto 6px;display:flex;flex-wrap:wrap;gap:6px;padding:0 4px;min-height:0}
+.attach-chip{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:12px;color:var(--text2);max-width:200px}
+.attach-chip .ac-thumb{width:28px;height:28px;border-radius:4px;object-fit:cover;flex-shrink:0}
+.attach-chip .ac-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.attach-chip .ac-rm{background:none;border:none;color:var(--text2);cursor:pointer;padding:0 0 0 4px;font-size:15px;line-height:1;flex-shrink:0}
+.attach-chip .ac-rm:hover{color:var(--danger)}
+.btn-attach{background:none;border:none;cursor:pointer;color:var(--text2);padding:6px 4px;border-radius:6px;font-size:18px;display:flex;align-items:center;transition:color .15s}
+.btn-attach:hover{color:var(--text)}
+/* In message bubbles */
+.msg-files{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.mf-img{max-width:220px;max-height:160px;border-radius:8px;object-fit:cover;cursor:pointer;border:1px solid var(--border)}
+.mf-doc{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--text2)}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -270,7 +284,17 @@ select.setting-sel:focus{border-color:var(--accent)}
   </div>
 
   <div id="input-area">
+    <!-- Attached file previews -->
+    <div class="attach-bar" id="attach-bar"></div>
     <div class="input-box">
+      <!-- Hidden file input -->
+      <input type="file" id="file-input" style="display:none" multiple
+        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.txt,.csv"
+        onchange="onFileSelected(event)">
+      <!-- Attachment button -->
+      <button class="btn-attach" onclick="document.getElementById('file-input').click()" title="Dosya ekle">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </button>
       <textarea id="input" rows="1" data-i18n-attr="placeholder" data-i18n="inputPlaceholder"
         placeholder="Mesajınızı yazın..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
       <button id="stop-btn" onclick="stopGen()" title="Durdur">
@@ -565,12 +589,91 @@ function copyCode(id, btn) {
 function copyText(text) { navigator.clipboard.writeText(text); }
 
 // ═══════════════════════════════════════════════════════
+// File attachments
+// ═══════════════════════════════════════════════════════
+async function onFileSelected(e) {
+  const files = Array.from(e.target.files);
+  e.target.value = '';  // reset so same file can be re-selected
+  for (const file of files) {
+    if (state.attachedFiles.length >= 5) {
+      alert('En fazla 5 dosya ekleyebilirsiniz.'); break;
+    }
+    await uploadAndAttach(file);
+  }
+}
+
+async function uploadAndAttach(file) {
+  const MAX_MB = 20;
+  if (file.size > MAX_MB * 1024 * 1024) {
+    alert(`Dosya çok büyük: ${file.name} (max ${MAX_MB} MB)`); return;
+  }
+
+  // Optimistic chip while uploading
+  const tmpId = 'tmp_' + Math.random().toString(36).slice(2);
+  addAttachChip({ file_id: tmpId, filename: file.name, type: 'uploading', uploading: true });
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const r = await fetch('/api/upload', {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: form,
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || 'Yükleme hatası');
+    }
+    const data = await r.json();
+    // Replace temp chip
+    removeAttachChip(tmpId);
+    state.attachedFiles.push(data);
+    addAttachChip(data);
+  } catch (err) {
+    removeAttachChip(tmpId);
+    alert(`Dosya yüklenemedi: ${err.message}`);
+  }
+}
+
+function addAttachChip(f) {
+  const bar  = document.getElementById('attach-bar');
+  const chip = document.createElement('div');
+  chip.className = 'attach-chip';
+  chip.id = 'chip_' + f.file_id;
+
+  const isImage = f.type === 'image';
+  const isUploading = f.uploading;
+
+  chip.innerHTML = isImage && f.preview_url
+    ? `<img class="ac-thumb" src="${f.preview_url}" alt="">`
+    : `<span style="font-size:16px">${isUploading ? '⏳' : isImage ? '🖼️' : '📄'}</span>`;
+
+  chip.innerHTML += `<span class="ac-name" title="${esc(f.filename)}">${esc(f.filename)}</span>`;
+  if (!isUploading) {
+    chip.innerHTML += `<button class="ac-rm" onclick="removeAttachChip('${f.file_id}')" title="Kaldır">✕</button>`;
+  }
+  bar.appendChild(chip);
+}
+
+function removeAttachChip(fileId) {
+  document.getElementById('chip_' + fileId)?.remove();
+  state.attachedFiles = state.attachedFiles.filter(f => f.file_id !== fileId);
+}
+
+function clearAttachments() {
+  document.getElementById('attach-bar').innerHTML = '';
+  state.attachedFiles = [];
+}
+
+// ═══════════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════════
 const state = {
   chatId: null, model: null, tempMode: false,
   streaming: false, chats: [], models: [],
   user: null, abort: null,
+  attachedFiles: [],   // {file_id, filename, type, mime, preview_url}
 };
 
 function esc(s) {
@@ -779,18 +882,33 @@ function highlightActive(id) {
 
 function renderMessages(msgs) {
   document.getElementById('msgs').innerHTML = '';
-  msgs.forEach(m => appendMsg(m.role, m.content));
+  msgs.forEach(m => appendMsg(m.role, m.content, m.attachments));
 }
 
-function appendMsg(role, content) {
+function appendMsg(role, content, attachments) {
   document.getElementById('empty')?.remove();
   const msgs = document.getElementById('msgs');
   const div = document.createElement('div');
   div.className = `msg ${role}`;
+
+  // Build attachment HTML
+  let attachHtml = '';
+  if (attachments && attachments.length) {
+    const items = attachments.map(f => {
+      if (f.type === 'image' && f.preview_url) {
+        return `<img class="mf-img" src="${f.preview_url}" alt="${esc(f.filename)}" onclick="window.open(this.src,'_blank')">`;
+      }
+      const icon = f.type === 'image' ? '🖼️' : '📄';
+      return `<div class="mf-doc">${icon} ${esc(f.filename)}</div>`;
+    }).join('');
+    attachHtml = `<div class="msg-files">${items}</div>`;
+  }
+
   div.innerHTML = `
     <div class="msg-av">${role==='user'?'👤':'🤖'}</div>
     <div class="msg-body">
       <div class="msg-role">${role==='user'?t('you'):t('assistant')}</div>
+      ${attachHtml}
       <div class="msg-content">${role==='assistant'?renderMd(content):esc(content).replace(/\n/g,'<br>')}</div>
       ${role==='assistant'?`<div class="msg-actions"><button class="icon-btn" onclick="copyText(this.closest('.msg').querySelector('.msg-content').innerText)" title="${t('copy')}">📋</button></div>`:''}
     </div>`;
@@ -809,14 +927,19 @@ function scrollBottom() {
 async function sendMessage() {
   const inp = document.getElementById('input');
   const text = inp.value.trim();
-  if (!text || state.streaming) return;
+  if ((!text && state.attachedFiles.length === 0) || state.streaming) return;
+  if (!text && state.attachedFiles.length > 0 && !confirm('Mesaj metni olmadan sadece dosya gönderilecek. Devam?')) return;
   const model = document.getElementById('model-select').value;
   if (!model) { alert(t('noModelAlert')); return; }
 
+  const fileIds = state.attachedFiles.map(f => f.file_id);
+  const attachedSnapshot = [...state.attachedFiles];
+
   inp.value = ''; autoResize(inp);
+  clearAttachments();
   state.streaming = true; updateBtns(true);
 
-  appendMsg('user', text);
+  appendMsg('user', text || ' ', attachedSnapshot);
   scrollBottom();
 
   const aDiv = appendMsg('assistant', '');
@@ -833,7 +956,7 @@ async function sendMessage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ chat_id: state.chatId, model, message: text, temporary: state.tempMode }),
+      body: JSON.stringify({ chat_id: state.chatId, model, message: text || ' ', temporary: state.tempMode, file_ids: fileIds }),
       signal: state.abort.signal,
     });
 

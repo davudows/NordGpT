@@ -14,6 +14,7 @@ OWASP Top 10 mitigations:
   A10 SSRF                      — Ollama URL hardcoded to localhost, model name regex
 """
 
+import base64
 import json
 import re
 import secrets
@@ -26,7 +27,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +52,41 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 OLLAMA_URL = "http://127.0.0.1:11434"   # localhost-only, prevents SSRF (A10)
+
+# ── File uploads ───────────────────────────────────────────────────────────────
+UPLOADS_DIR   = BASE_DIR / "data" / "uploads"
+MAX_UPLOAD_MB = 20
+MAX_FILE_SIZE = MAX_UPLOAD_MB * 1024 * 1024
+ALLOWED_MIMES: dict[str, str] = {
+    "image/jpeg": "image", "image/png": "image",
+    "image/gif":  "image", "image/webp": "image",
+    "application/pdf": "document",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "document",
+    "text/plain": "document", "text/csv": "document",
+}
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+_FILE_ID_RE = re.compile(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+
+def extract_text_from_file(data: bytes, mime: str, filename: str) -> str:
+    """Extract plain text from uploaded document. Returns empty string on error."""
+    try:
+        if mime == "application/pdf":
+            import io
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(data))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            return "\n\n".join(p for p in pages if p.strip())
+        elif "wordprocessingml" in mime:
+            import io
+            from docx import Document
+            doc = Document(io.BytesIO(data))
+            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        elif mime in ("text/plain", "text/csv"):
+            return data.decode("utf-8", errors="replace")
+    except Exception as exc:
+        logger.warning("TEXT_EXTRACT_ERROR filename=%s error=%s", filename, exc)
+    return ""
 
 # ── Microsoft SSO Config (loaded once at startup from .nordgpt.conf) ───────────
 def _load_conf() -> dict:
@@ -614,6 +650,76 @@ async def get_catalog(_: dict = Depends(get_current_user)):
     catalog_path = BASE_DIR / "models.json"
     return json.loads(catalog_path.read_text(encoding="utf-8"))
 
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Upload a file (image or document) to attach to a chat message."""
+    mime = (file.content_type or "").split(";")[0].strip()
+    file_type = ALLOWED_MIMES.get(mime)
+    if not file_type:
+        raise HTTPException(415, f"Desteklenmeyen dosya türü. İzin verilenler: resim, PDF, DOCX, TXT")
+
+    data = await file.read()
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(413, f"Dosya çok büyük (max {MAX_UPLOAD_MB} MB)")
+    if len(data) == 0:
+        raise HTTPException(400, "Boş dosya")
+
+    file_id = str(uuid.uuid4())
+    original_name = file.filename or "dosya"
+    ext = Path(original_name).suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".docx", ".txt", ".csv"):
+        ext = ""
+    stored_name = f"{file_id}{ext}"
+    stored_path  = UPLOADS_DIR / stored_name
+
+    stored_path.write_bytes(data)
+
+    extracted_text = ""
+    if file_type == "document":
+        extracted_text = extract_text_from_file(data, mime, original_name)
+
+    meta = {
+        "id":             file_id,
+        "filename":       stored_name,
+        "original_name":  original_name,
+        "type":           file_type,
+        "mime":           mime,
+        "size":           len(data),
+        "extracted_text": extracted_text[:50_000],
+        "uploaded_by":    user["username"],
+        "uploaded_at":    datetime.now(timezone.utc).isoformat(),
+    }
+    (UPLOADS_DIR / f"{file_id}.meta.json").write_text(
+        json.dumps(meta, ensure_ascii=False), encoding="utf-8"
+    )
+
+    logger.info("UPLOAD file_id=%s name=%s type=%s size=%d user=%s",
+                file_id, original_name, file_type, len(data), user["username"])
+    return {
+        "file_id":      file_id,
+        "filename":     original_name,
+        "type":         file_type,
+        "size":         len(data),
+        "has_text":     bool(extracted_text),
+        "preview_url":  f"/api/upload/{file_id}" if file_type == "image" else None,
+    }
+
+@app.get("/api/upload/{file_id}")
+async def serve_upload(file_id: str, user: dict = Depends(get_current_user)):
+    """Serve an uploaded file (images only — for preview in chat history)."""
+    if not _FILE_ID_RE.match(file_id):
+        raise HTTPException(400, "Geçersiz dosya ID")
+    meta_path = UPLOADS_DIR / f"{file_id}.meta.json"
+    if not meta_path.exists():
+        raise HTTPException(404, "Dosya bulunamadı")
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    if user["role"] != "admin" and meta["uploaded_by"] != user["username"]:
+        raise HTTPException(403)
+    stored = UPLOADS_DIR / meta["filename"]
+    if not stored.exists():
+        raise HTTPException(404, "Dosya bulunamadı")
+    return FileResponse(stored, media_type=meta["mime"])
+
 class PullRequest(BaseModel):
     model: str
 
@@ -766,6 +872,7 @@ class ChatRequest(BaseModel):
     message: str
     temporary: bool = False
     system_prompt: str | None = None
+    file_ids: list[str] = []
 
     @field_validator("model")
     @classmethod
@@ -808,12 +915,47 @@ async def chat(req: ChatRequest, user: dict = Depends(get_current_user)):
         chat_data = _new_chat(str(uuid.uuid4()), req.model, req.temporary,
                               req.system_prompt, user["username"])
 
-    # Add user message
-    chat_data["messages"].append({
-        "role": "user",
-        "content": req.message,
+    # ── Process attached files ──────────────────────────────────────────────────
+    attachments_meta: list[dict] = []
+    doc_context      = ""
+    image_b64_list:  list[str]   = []
+
+    for fid in (req.file_ids or []):
+        if not _FILE_ID_RE.match(fid):
+            continue
+        meta_path = UPLOADS_DIR / f"{fid}.meta.json"
+        if not meta_path.exists():
+            continue
+        fmeta = json.loads(meta_path.read_text(encoding="utf-8"))
+        # Ownership check
+        if user["role"] != "admin" and fmeta["uploaded_by"] != user["username"]:
+            continue
+        attachments_meta.append({
+            "file_id":  fid,
+            "filename": fmeta["original_name"],
+            "type":     fmeta["type"],
+            "mime":     fmeta["mime"],
+        })
+        if fmeta["type"] == "image":
+            img_path = UPLOADS_DIR / fmeta["filename"]
+            if img_path.exists():
+                image_b64_list.append(base64.b64encode(img_path.read_bytes()).decode())
+        elif fmeta["type"] == "document" and fmeta.get("extracted_text"):
+            doc_context += f"[📄 {fmeta['original_name']}]\n\n{fmeta['extracted_text'][:8000]}\n\n---\n\n"
+
+    # User message content for Ollama (augmented with doc context if any)
+    ollama_user_content = (doc_context + req.message) if doc_context else req.message
+
+    # Add user message to history (store original message, not augmented)
+    user_msg: dict = {
+        "role":      "user",
+        "content":   req.message,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
+    }
+    if attachments_meta:
+        user_msg["attachments"] = attachments_meta
+    chat_data["messages"].append(user_msg)
+
     if len(chat_data["messages"]) == 1:
         chat_data["title"] = req.message.strip()[:60]
 
@@ -821,8 +963,15 @@ async def chat(req: ChatRequest, user: dict = Depends(get_current_user)):
     ollama_msgs = []
     if chat_data.get("system_prompt"):
         ollama_msgs.append({"role": "system", "content": chat_data["system_prompt"]})
-    for m in chat_data["messages"]:
-        ollama_msgs.append({"role": m["role"], "content": m["content"]})
+    for i, m in enumerate(chat_data["messages"]):
+        is_current = (i == len(chat_data["messages"]) - 1 and m["role"] == "user")
+        entry: dict = {
+            "role":    m["role"],
+            "content": ollama_user_content if is_current else m["content"],
+        }
+        if is_current and image_b64_list:
+            entry["images"] = image_b64_list
+        ollama_msgs.append(entry)
 
     async def generate():
         full = ""
