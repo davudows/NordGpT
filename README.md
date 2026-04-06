@@ -293,8 +293,9 @@ Hangi alanda kullanacaksınız?
 # Yüklü modelleri listele
 ./nordgpt.sh list
 
-# Yapılandırmayı sıfırla (sihirbazı tekrar çalıştır)
-./nordgpt.sh reset
+# Yapılandırmayı sıfırla, ardından sihirbazı tekrar çalıştır
+./nordgpt.sh reset   # config dosyasını siler
+./nordgpt.sh         # sihirbazı başlatır
 
 # Sohbet geçmişini temizle
 ./nordgpt.sh clean
@@ -543,7 +544,7 @@ A: Evet. Admin panelinden (⚙️ → 👥) yeni kullanıcılar oluşturabilirsi
 A: Evet, CPU üzerinde çalışır. Küçük modeller (phi3:mini, qwen2.5:0.5b) makul hızda çalışır.
 
 **Q: Yapılandırmayı sıfırlamak istiyorum.**
-A: `./nordgpt.sh reset` komutu ile sihirbazı tekrar çalıştırabilirsiniz.
+A: Önce `./nordgpt.sh reset` ile config dosyasını silin, ardından `./nordgpt.sh` ile sihirbazı tekrar başlatın.
 
 **Q: Port 7860 kullanımda, ne yapmalıyım?**
 A: `NORDGPT_PORT=8080 ./nordgpt.sh` ile farklı port kullanın.
