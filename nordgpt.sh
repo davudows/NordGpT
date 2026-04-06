@@ -496,15 +496,19 @@ sys.exit(0 if any(u.get('role')=='admin' for u in users) else 1)
     setup_admin_account; return
   fi
 
-  # Create user via Python (password passed through stdin — not via args or env)
-  local result
-  result=$(printf '%s\n%s\n' "$adm_user" "$adm_pass" | "$VENV_DIR/bin/python3" - <<'PYEOF'
+  # Python scriptini temp dosyaya yaz (heredoc + pipe çakışmasını önler)
+  local tmpscript; tmpscript=$(mktemp /tmp/nordgpt_admin_XXXXXX.py)
+  chmod 600 "$tmpscript"
+  cat > "$tmpscript" << 'PYEOF'
 import sys, json
 from pathlib import Path
 from datetime import datetime
 from passlib.context import CryptContext
 
 lines = sys.stdin.read().splitlines()
+if len(lines) < 2:
+    print("ERROR:yetersiz_girdi")
+    sys.exit(1)
 username = lines[0].strip()
 password = lines[1].strip()
 
@@ -513,7 +517,6 @@ users_file = Path("data/users.json")
 users_file.parent.mkdir(parents=True, exist_ok=True)
 
 users = json.loads(users_file.read_text()) if users_file.exists() else []
-# Remove any existing admin with same name
 users = [u for u in users if u["username"] != username]
 users.insert(0, {
     "username": username,
