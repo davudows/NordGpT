@@ -452,6 +452,7 @@ MICROSOFT_CLIENT_SECRET=$MS_CLIENT_SECRET
 MICROSOFT_TENANT_ID=${MS_TENANT_ID:-common}
 MICROSOFT_REDIRECT_URI=$MS_REDIRECT_URI
 ALLOWED_DOMAINS=$MS_ALLOWED_DOMAINS
+MICROSOFT_ONLY=${MS_ONLY:-false}
 EOF
   fi
 
@@ -523,9 +524,23 @@ setup_microsoft_sso() {
   read -r MS_ALLOWED_DOMAINS
 
   echo ""
+  echo -e "  ${W}── Giriş Yöntemi ──────────────────────────────────${NC}"
+  echo -e "  ${DIM}  Sadece Microsoft ile giriş: kullanıcı adı/şifre formu gizlenir,${NC}"
+  echo -e "  ${DIM}  login sayfası açılınca doğrudan Microsoft'a yönlendirilir.${NC}"
+  echo ""
+  prompt "Sadece Microsoft ile giriş yapılsın mı? (kullanıcı adı/şifre devre dışı) [E/h]:"
+  read -r ms_only_choice
+  ms_only_choice="${ms_only_choice,,}"
+  if [[ "$ms_only_choice" == "h" || "$ms_only_choice" == "hayır" || "$ms_only_choice" == "n" || "$ms_only_choice" == "no" ]]; then
+    MS_ONLY="false"
+  else
+    MS_ONLY="true"
+  fi
+
   info "Microsoft SSO yapılandırıldı"
   echo -e "  ${DIM}  Tenant: ${MS_TENANT_ID}${NC}"
   echo -e "  ${DIM}  İzinli domainler: ${MS_ALLOWED_DOMAINS:-<tümü>}${NC}"
+  echo -e "  ${DIM}  Sadece Microsoft girişi: ${MS_ONLY}${NC}"
   divider
 }
 

@@ -110,6 +110,8 @@ ALLOWED_DOMAINS: list[str] = [
     for d in _startup_conf.get("ALLOWED_DOMAINS", "").split(",")
     if d.strip()
 ]
+# When true: password login disabled, /login auto-redirects to Microsoft
+MS_ONLY = _startup_conf.get("MICROSOFT_ONLY", "").lower() in ("true", "1", "yes", "evet")
 
 # ── Cloudflare Turnstile CAPTCHA (optional — set keys to enable) ───────────────
 # Get free keys at: https://dash.cloudflare.com/?to=/:account/turnstile
@@ -279,6 +281,9 @@ async def login_page(request: Request):
     token = request.cookies.get("nordgpt_session")
     if token and validate_session(token):
         return RedirectResponse("/chat", status_code=302)
+    # Microsoft-only mode: skip login page, go straight to Microsoft
+    if MS_ONLY and MS_CLIENT_ID:
+        return RedirectResponse("/auth/microsoft", status_code=302)
     return FileResponse(BASE_DIR / "static" / "login.html")
 
 @app.get("/chat")
@@ -324,6 +329,10 @@ async def _verify_turnstile(token: str, ip: str) -> bool:
 
 @app.post("/auth/login")
 async def login(request: Request, data: LoginRequest):
+    # Microsoft-only mode: password login disabled
+    if MS_ONLY:
+        raise HTTPException(403, "Şifre ile giriş devre dışı. Microsoft hesabınızı kullanın.")
+
     client_ip = get_client_ip(request)
 
     # A07: Rate limiting
@@ -389,11 +398,13 @@ async def me(user: dict = Depends(get_current_user)):
 @app.get("/api/auth/providers")
 async def auth_providers():
     """Returns which login methods are available (used by login page)."""
+    ms_enabled = bool(MS_CLIENT_ID and MS_CLIENT_SECRET)
     return {
-        "password":           True,
-        "microsoft":          bool(MS_CLIENT_ID and MS_CLIENT_SECRET),
+        "password":           not MS_ONLY,           # false when Microsoft-only mode
+        "microsoft":          ms_enabled,
+        "microsoft_only":     MS_ONLY and ms_enabled,
         "allowed_domains":    ALLOWED_DOMAINS,
-        "turnstile_site_key": TURNSTILE_SITE_KEY,   # empty string = CAPTCHA disabled
+        "turnstile_site_key": TURNSTILE_SITE_KEY,
     }
 
 @app.get("/auth/microsoft")
