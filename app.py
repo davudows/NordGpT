@@ -20,7 +20,7 @@ import secrets
 import logging
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -97,7 +97,7 @@ def find_user(username: str) -> dict | None:
 def create_session(username: str, role: str) -> str:
     # A02: cryptographically random, 256-bit token
     token = secrets.token_urlsafe(32)
-    expires = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+    expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
     _sessions[token] = {"username": username, "role": role, "expires": expires}
     return token
 
@@ -105,19 +105,19 @@ def validate_session(token: str) -> dict | None:
     s = _sessions.get(token)
     if not s:
         return None
-    if datetime.utcnow() > datetime.fromisoformat(s["expires"]):
+    if datetime.now(timezone.utc) > datetime.fromisoformat(s["expires"]):
         _sessions.pop(token, None)
         return None
     return s
 
 def is_rate_limited(ip: str) -> bool:
     # A07: sliding window rate limit
-    now = datetime.utcnow().timestamp()
+    now = datetime.now(timezone.utc).timestamp()
     _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < WINDOW_SECONDS]
     return len(_login_attempts[ip]) >= MAX_ATTEMPTS
 
 def record_attempt(ip: str):
-    _login_attempts[ip].append(datetime.utcnow().timestamp())
+    _login_attempts[ip].append(datetime.now(timezone.utc).timestamp())
 
 # ── FastAPI deps ───────────────────────────────────────────────────────────────
 def get_current_user(request: Request) -> dict:
@@ -327,7 +327,7 @@ async def create_user(req: CreateUserRequest, admin: dict = Depends(require_admi
         "username": req.username,
         "password_hash": _hash_password(req.password),
         "role": req.role,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": admin["username"],
     })
     save_users(users)
@@ -506,7 +506,7 @@ async def rename_chat(chat_id: str, req: RenameRequest, user: dict = Depends(get
     if user["role"] != "admin" and chat.get("created_by") != user["username"]:
         raise HTTPException(403)
     chat["title"] = req.title
-    chat["updated_at"] = datetime.utcnow().isoformat()
+    chat["updated_at"] = datetime.now(timezone.utc).isoformat()
     save_chat(chat)
     return {"ok": True}
 
@@ -590,7 +590,7 @@ async def chat(req: ChatRequest, user: dict = Depends(get_current_user)):
     chat_data["messages"].append({
         "role": "user",
         "content": req.message,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     if len(chat_data["messages"]) == 1:
         chat_data["title"] = req.message.strip()[:60]
@@ -637,9 +637,9 @@ async def chat(req: ChatRequest, user: dict = Depends(get_current_user)):
         chat_data["messages"].append({
             "role": "assistant",
             "content": full,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
-        chat_data["updated_at"] = datetime.utcnow().isoformat()
+        chat_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         if not req.temporary:
             save_chat(chat_data)
 
@@ -653,8 +653,8 @@ def _new_chat(cid: str, model: str, temp: bool, sys_prompt, owner: str) -> dict:
         "id": cid,
         "title": "New Chat",
         "model": model,
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "temporary": temp,
         "system_prompt": sys_prompt,
         "created_by": owner,

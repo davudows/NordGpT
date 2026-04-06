@@ -502,7 +502,7 @@ sys.exit(0 if any(u.get('role')=='admin' for u in users) else 1)
   cat > "$tmpscript" << 'PYEOF'
 import sys, json, bcrypt
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 lines = sys.stdin.read().splitlines()
 if len(lines) < 2:
@@ -521,7 +521,7 @@ users.insert(0, {
     "username": username,
     "password_hash": password_hash,
     "role": "admin",
-    "created_at": datetime.utcnow().isoformat(),
+    "created_at": datetime.now(timezone.utc).isoformat(),
     "created_by": "setup"
 })
 users_file.write_text(json.dumps(users, indent=2, ensure_ascii=False))
