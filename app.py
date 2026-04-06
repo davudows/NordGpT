@@ -19,9 +19,11 @@ import re
 import secrets
 import logging
 import uuid
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -49,6 +51,37 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 OLLAMA_URL = "http://127.0.0.1:11434"   # localhost-only, prevents SSRF (A10)
+
+# ── Microsoft SSO Config (loaded once at startup from .nordgpt.conf) ───────────
+def _load_conf() -> dict:
+    out: dict[str, str] = {}
+    if CONF_FILE.exists():
+        for line in CONF_FILE.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            out[k.strip()] = v.strip()
+    return out
+
+_startup_conf = _load_conf()
+MS_CLIENT_ID     = _startup_conf.get("MICROSOFT_CLIENT_ID", "")
+MS_CLIENT_SECRET = _startup_conf.get("MICROSOFT_CLIENT_SECRET", "")
+MS_TENANT        = _startup_conf.get("MICROSOFT_TENANT_ID", "common")
+MS_REDIRECT_URI  = _startup_conf.get("MICROSOFT_REDIRECT_URI", "")
+ALLOWED_DOMAINS: list[str] = [
+    d.strip().lower()
+    for d in _startup_conf.get("ALLOWED_DOMAINS", "").split(",")
+    if d.strip()
+]
+
+# ── Cloudflare Turnstile CAPTCHA (optional — set keys to enable) ───────────────
+# Get free keys at: https://dash.cloudflare.com/?to=/:account/turnstile
+TURNSTILE_SITE_KEY   = _startup_conf.get("TURNSTILE_SITE_KEY", "")
+TURNSTILE_SECRET_KEY = _startup_conf.get("TURNSTILE_SECRET_KEY", "")
+
+# CSRF state store for OAuth2 flow  {state_token: created_timestamp}
+_oauth_states: dict[str, float] = {}
 
 # A02: bcrypt password hashing (direct bcrypt — passlib 1.7 incompatible with bcrypt 4.x)
 def _hash_password(plain: str) -> str:
@@ -165,7 +198,9 @@ async def security_headers(request: Request, call_next):
     return response
 
 # A01: Auth guard — protect all routes except public ones
-UNPROTECTED = {"/", "/login", "/auth/login", "/auth/logout"}
+UNPROTECTED = {"/", "/login", "/auth/login", "/auth/logout",
+               "/auth/microsoft", "/auth/microsoft/callback",
+               "/api/auth/providers"}
 
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
@@ -206,6 +241,7 @@ async def chat_page():
 class LoginRequest(BaseModel):
     username: str
     password: str
+    cf_turnstile_response: str = ""   # CAPTCHA token (empty = CAPTCHA disabled)
 
     @field_validator("username")
     @classmethod
@@ -222,6 +258,22 @@ class LoginRequest(BaseModel):
             raise ValueError("Geçersiz şifre")
         return v
 
+async def _verify_turnstile(token: str, ip: str) -> bool:
+    """Verify Cloudflare Turnstile CAPTCHA token. Returns True if valid."""
+    if not TURNSTILE_SECRET_KEY:
+        return True   # CAPTCHA not configured — allow all
+    if not token:
+        return False  # CAPTCHA configured but no token provided
+    try:
+        async with httpx.AsyncClient(timeout=5) as hc:
+            resp = await hc.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                data={"secret": TURNSTILE_SECRET_KEY, "response": token, "remoteip": ip},
+            )
+            return resp.json().get("success", False)
+    except Exception:
+        return False
+
 @app.post("/auth/login")
 async def login(request: Request, data: LoginRequest):
     client_ip = request.client.host or "unknown"
@@ -230,6 +282,13 @@ async def login(request: Request, data: LoginRequest):
     if is_rate_limited(client_ip):
         audit.warning("LOGIN_BLOCKED ip=%s username=%s (rate limited)", client_ip, data.username[:32])
         raise HTTPException(429, "Çok fazla başarısız deneme. 5 dakika sonra tekrar deneyin.")
+
+    # CAPTCHA verification (when Turnstile keys are configured)
+    if TURNSTILE_SECRET_KEY:
+        captcha_ok = await _verify_turnstile(data.cf_turnstile_response, client_ip)
+        if not captcha_ok:
+            audit.warning("CAPTCHA_FAIL ip=%s username=%s", client_ip, data.username[:32])
+            raise HTTPException(400, "CAPTCHA doğrulaması başarısız. Lütfen tekrar deneyin.")
 
     user = find_user(data.username)
 
@@ -277,6 +336,169 @@ async def logout(request: Request):
 @app.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
     return {"username": user["username"], "role": user["role"]}
+
+# ── Microsoft Entra ID / Azure AD SSO ─────────────────────────────────────────
+@app.get("/api/auth/providers")
+async def auth_providers():
+    """Returns which login methods are available (used by login page)."""
+    return {
+        "password":           True,
+        "microsoft":          bool(MS_CLIENT_ID and MS_CLIENT_SECRET),
+        "allowed_domains":    ALLOWED_DOMAINS,
+        "turnstile_site_key": TURNSTILE_SITE_KEY,   # empty string = CAPTCHA disabled
+    }
+
+@app.get("/auth/microsoft")
+async def microsoft_login():
+    """Step 1: Redirect user to Microsoft authorization page."""
+    if not MS_CLIENT_ID:
+        raise HTTPException(404, "Microsoft SSO yapılandırılmamış")
+
+    state = secrets.token_urlsafe(16)
+    _oauth_states[state] = time.time()
+
+    # Prune stale states (>10 min) to prevent memory leak
+    cutoff = time.time() - 600
+    stale = [s for s, ts in _oauth_states.items() if ts < cutoff]
+    for s in stale:
+        _oauth_states.pop(s, None)
+
+    params = urlencode({
+        "client_id":     MS_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri":  MS_REDIRECT_URI,
+        "scope":         "openid email profile User.Read",
+        "state":         state,
+        "response_mode": "query",
+        "prompt":        "select_account",   # always show account picker
+    })
+    return RedirectResponse(
+        f"https://login.microsoftonline.com/{MS_TENANT}/oauth2/v2.0/authorize?{params}"
+    )
+
+@app.get("/auth/microsoft/callback")
+async def microsoft_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    """Step 2: Microsoft redirects here with auth code; exchange for token."""
+    client_ip = request.client.host or "unknown"
+
+    # A07: Rate limit the callback too (prevents brute-forcing stolen codes)
+    if is_rate_limited(client_ip):
+        audit.warning("MS_CALLBACK_RATE_LIMITED ip=%s", client_ip)
+        return RedirectResponse("/login?error=rate_limited")
+
+    if error:
+        audit.warning("MS_AUTH_ERROR ip=%s error=%s desc=%s", client_ip, error, error_description)
+        return RedirectResponse("/login?error=ms_cancelled")
+
+    if not code or not state:
+        return RedirectResponse("/login?error=ms_cancelled")
+
+    # A08: CSRF check — state must match what we issued within 5 minutes
+    issued_at = _oauth_states.pop(state, None)
+    if issued_at is None or time.time() - issued_at > 300:
+        audit.warning("MS_INVALID_STATE ip=%s", client_ip)
+        record_attempt(client_ip)
+        return RedirectResponse("/login?error=invalid_state")
+
+    # Exchange authorization code for access token
+    try:
+        async with httpx.AsyncClient(timeout=10) as hc:
+            token_resp = await hc.post(
+                f"https://login.microsoftonline.com/{MS_TENANT}/oauth2/v2.0/token",
+                data={
+                    "client_id":     MS_CLIENT_ID,
+                    "client_secret": MS_CLIENT_SECRET,
+                    "code":          code,
+                    "redirect_uri":  MS_REDIRECT_URI,
+                    "grant_type":    "authorization_code",
+                    "scope":         "openid email profile User.Read",
+                },
+            )
+            if token_resp.status_code != 200:
+                audit.warning("MS_TOKEN_ERROR ip=%s status=%d body=%s",
+                              client_ip, token_resp.status_code, token_resp.text[:200])
+                record_attempt(client_ip)
+                return RedirectResponse("/login?error=token_error")
+
+            access_token = token_resp.json().get("access_token", "")
+
+            # Get user profile from Microsoft Graph
+            me_resp = await hc.get(
+                "https://graph.microsoft.com/v1.0/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={"$select": "displayName,mail,userPrincipalName"},
+            )
+            if me_resp.status_code != 200:
+                audit.warning("MS_GRAPH_ERROR ip=%s status=%d", client_ip, me_resp.status_code)
+                return RedirectResponse("/login?error=profile_error")
+
+            me = me_resp.json()
+
+    except Exception as exc:
+        audit.error("MS_CALLBACK_EXCEPTION ip=%s error=%s", client_ip, exc)
+        return RedirectResponse("/login?error=network_error")
+
+    email = (me.get("mail") or me.get("userPrincipalName") or "").lower().strip()
+    display_name = me.get("displayName") or email.split("@")[0]
+
+    if not email or "@" not in email:
+        audit.warning("MS_NO_EMAIL ip=%s profile=%s", client_ip, str(me)[:200])
+        return RedirectResponse("/login?error=no_email")
+
+    domain = email.split("@")[1]
+
+    # A01: Domain allowlist — reject accounts from unapproved domains
+    if ALLOWED_DOMAINS and domain not in ALLOWED_DOMAINS:
+        audit.warning("MS_DOMAIN_DENIED ip=%s email=%s domain=%s allowed=%s",
+                      client_ip, email, domain, ALLOWED_DOMAINS)
+        record_attempt(client_ip)
+        return RedirectResponse("/login?error=domain_not_allowed")
+
+    # Find existing SSO user or auto-create one
+    users = load_users()
+    user_record = next((u for u in users if u.get("ms_email", "").lower() == email), None)
+
+    if not user_record:
+        # Derive safe username from email prefix
+        base = re.sub(r"[^a-zA-Z0-9_]", "_", email.split("@")[0])[:28] or "user"
+        username, suffix = base, 1
+        while any(u["username"] == username for u in users):
+            username = f"{base}_{suffix}"
+            suffix += 1
+
+        user_record = {
+            "username":      username,
+            "display_name":  display_name,
+            "ms_email":      email,
+            "password_hash": None,           # SSO users have no local password
+            "role":          "user",
+            "created_at":    datetime.now(timezone.utc).isoformat(),
+            "created_by":    "microsoft_sso",
+        }
+        users.append(user_record)
+        save_users(users)
+        audit.info("MS_USER_CREATED username=%s email=%s", username, email)
+
+    audit.info("MS_LOGIN_OK ip=%s username=%s email=%s", client_ip, user_record["username"], email)
+    token = create_session(user_record["username"], user_record["role"])
+
+    response = RedirectResponse("/", status_code=302)
+    response.set_cookie(
+        key="nordgpt_session",
+        value=token,
+        httponly=True,
+        samesite="lax",   # must be lax (not strict) for OAuth2 redirect flow
+        max_age=86400,
+        secure=False,     # change to True when served over HTTPS
+        path="/",
+    )
+    return response
 
 # ── User management (admin only) ───────────────────────────────────────────────
 class CreateUserRequest(BaseModel):

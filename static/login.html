@@ -95,6 +95,53 @@ input::placeholder { color: #555; }
 .btn-login:hover { background: #0d8a6b; }
 .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Divider ── */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+  color: #555;
+  font-size: 12px;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #3d3d3d;
+}
+
+/* ── Microsoft button ── */
+.btn-ms {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #2a2a2a;
+  color: #ececec;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-ms:hover { background: #363636; border-color: #10a37f; }
+.btn-ms svg  { flex-shrink: 0; }
+.ms-sso-section { display: none; }
+
+/* ── Captcha placeholder ── */
+.captcha-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Error / warning ── */
 .error-msg {
   background: rgba(229, 83, 83, 0.1);
   border: 1px solid rgba(229, 83, 83, 0.4);
@@ -132,6 +179,20 @@ input::placeholder { color: #555; }
   <div class="card">
     <div class="card-title">Giriş Yap</div>
 
+    <!-- Microsoft SSO section (shown only when configured) -->
+    <div class="ms-sso-section" id="ms-sso-section">
+      <a class="btn-ms" href="/auth/microsoft" id="btn-ms">
+        <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1"  y="1"  width="9" height="9" fill="#f25022"/>
+          <rect x="11" y="1"  width="9" height="9" fill="#7fba00"/>
+          <rect x="1"  y="11" width="9" height="9" fill="#00a4ef"/>
+          <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+        </svg>
+        Microsoft ile Giriş Yap
+      </a>
+      <div class="divider">veya</div>
+    </div>
+
     <form id="login-form" onsubmit="doLogin(event)" autocomplete="on" novalidate>
       <div class="field">
         <label for="username">Kullanıcı Adı</label>
@@ -158,6 +219,9 @@ input::placeholder { color: #555; }
         >
       </div>
 
+      <!-- Cloudflare Turnstile CAPTCHA (injected by JS when enabled) -->
+      <div id="captcha-wrap" class="captcha-wrap" style="display:none"></div>
+
       <button type="submit" class="btn-login" id="submit-btn">Giriş Yap</button>
     </form>
 
@@ -172,18 +236,69 @@ input::placeholder { color: #555; }
 
 <script>
 let failedAttempts = 0;
+let turnstileSiteKey = '';
+let turnstileWidgetId = null;
 
+// ── Error messages from Microsoft SSO redirect ─────────────────────────────────
+const MS_ERRORS = {
+  ms_cancelled:       'Microsoft girişi iptal edildi.',
+  domain_not_allowed: 'Bu e-posta domaini sisteme erişim için onaylanmamış.',
+  rate_limited:       'Çok fazla başarısız deneme. Lütfen 5 dakika bekleyin.',
+  invalid_state:      'Güvenlik hatası (geçersiz state). Lütfen tekrar deneyin.',
+  token_error:        'Microsoft\'tan kimlik doğrulama tokeni alınamadı.',
+  profile_error:      'Microsoft\'tan profil bilgisi alınamadı.',
+  network_error:      'Microsoft sunucusuna bağlanılamadı.',
+  no_email:           'Microsoft hesabınızda e-posta adresi bulunamadı.',
+};
+
+const urlParams = new URLSearchParams(window.location.search);
+const urlError  = urlParams.get('error');
+if (urlError && MS_ERRORS[urlError]) {
+  showError(MS_ERRORS[urlError]);
+}
+
+// ── Load providers: show Microsoft button & CAPTCHA if configured ──────────────
+fetch('/api/auth/providers')
+  .then(r => r.json())
+  .then(data => {
+    if (data.microsoft) {
+      document.getElementById('ms-sso-section').style.display = 'block';
+    }
+    if (data.turnstile_site_key) {
+      turnstileSiteKey = data.turnstile_site_key;
+      loadTurnstile();
+    }
+  })
+  .catch(() => {});
+
+function loadTurnstile() {
+  // Dynamically load Cloudflare Turnstile script
+  const script = document.createElement('script');
+  script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  script.async = true;
+  script.defer = true;
+  script.onload = () => {
+    const wrap = document.getElementById('captcha-wrap');
+    wrap.style.display = 'flex';
+    turnstileWidgetId = window.turnstile.render(wrap, {
+      sitekey: turnstileSiteKey,
+      theme: 'dark',
+    });
+  };
+  document.head.appendChild(script);
+}
+
+// ── Password login ─────────────────────────────────────────────────────────────
 async function doLogin(e) {
   e.preventDefault();
 
-  const btn = document.getElementById('submit-btn');
-  const errEl = document.getElementById('error-msg');
+  const btn    = document.getElementById('submit-btn');
+  const errEl  = document.getElementById('error-msg');
   const warnEl = document.getElementById('attempts-warn');
 
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
 
-  // Client-side basic validation (not a security measure — server validates too)
   if (!username || !password) {
     showError('Kullanıcı adı ve şifre zorunludur.');
     return;
@@ -198,7 +313,13 @@ async function doLogin(e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({
+        username,
+        password,
+        cf_turnstile_response: turnstileSiteKey
+          ? (window.turnstile?.getResponse(turnstileWidgetId) || '')
+          : '',
+      }),
     });
 
     if (res.ok) {
@@ -208,6 +329,10 @@ async function doLogin(e) {
 
     const data = await res.json().catch(() => ({}));
     failedAttempts++;
+    // Reset CAPTCHA after failed attempt so user gets a new challenge
+    if (turnstileSiteKey && window.turnstile) {
+      window.turnstile.reset(turnstileWidgetId);
+    }
 
     if (res.status === 429) {
       showError('Çok fazla başarısız deneme. Lütfen 5 dakika bekleyin.');
@@ -217,7 +342,6 @@ async function doLogin(e) {
     }
 
     if (res.status === 401) {
-      // Generic message — don't reveal which field is wrong
       showError('Kullanıcı adı veya şifre hatalı.');
     } else {
       showError(data.detail || 'Giriş yapılamadı. Tekrar deneyin.');

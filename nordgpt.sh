@@ -441,7 +441,127 @@ DEFAULT_MODEL=$SELECTED_MODEL
 HW_TIER=$HW_TIER
 CONFIGURED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
+
+  # Append Microsoft SSO config if provided
+  if [[ -n "${MS_CLIENT_ID:-}" ]]; then
+    cat >> "$CONFIG_FILE" <<EOF
+
+# Microsoft Entra ID / Azure AD SSO
+MICROSOFT_CLIENT_ID=$MS_CLIENT_ID
+MICROSOFT_CLIENT_SECRET=$MS_CLIENT_SECRET
+MICROSOFT_TENANT_ID=${MS_TENANT_ID:-common}
+MICROSOFT_REDIRECT_URI=$MS_REDIRECT_URI
+ALLOWED_DOMAINS=$MS_ALLOWED_DOMAINS
+EOF
+  fi
+
+  # Append Turnstile CAPTCHA config if provided
+  if [[ -n "${TURNSTILE_SITE_KEY:-}" ]]; then
+    cat >> "$CONFIG_FILE" <<EOF
+
+# Cloudflare Turnstile CAPTCHA
+TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY=$TURNSTILE_SECRET_KEY
+EOF
+  fi
+
   info "Yapılandırma kaydedildi: ${DIM}.nordgpt.conf${NC}"
+}
+
+# ── Optional Microsoft SSO Setup ───────────────────────────────────────────────
+setup_microsoft_sso() {
+  echo ""
+  echo -e "  ${W}── Microsoft Entra ID / Azure AD SSO (İsteğe Bağlı) ──${NC}"
+  echo -e "  ${DIM}  Azure portal → App registrations → New registration${NC}"
+  echo -e "  ${DIM}  Redirect URI: http(s)://<sunucu-ip>:<port>/auth/microsoft/callback${NC}"
+  echo ""
+  prompt "Microsoft SSO yapılandırmak istiyor musunuz? [e/H]:"
+  read -r ms_choice
+  ms_choice="${ms_choice,,}"  # lowercase
+
+  if [[ "$ms_choice" != "e" && "$ms_choice" != "evet" && "$ms_choice" != "y" && "$ms_choice" != "yes" ]]; then
+    MS_CLIENT_ID=""
+    info "Microsoft SSO atlandı"
+    return 0
+  fi
+
+  echo ""
+  prompt "Application (Client) ID:"
+  read -r MS_CLIENT_ID
+  MS_CLIENT_ID="${MS_CLIENT_ID//[[:space:]]/}"
+  if [[ -z "$MS_CLIENT_ID" ]]; then
+    warn "Client ID boş, Microsoft SSO atlandı"
+    MS_CLIENT_ID=""
+    return 0
+  fi
+
+  prompt "Client Secret (Value, not ID):"
+  read -rs MS_CLIENT_SECRET
+  echo ""
+  if [[ -z "$MS_CLIENT_SECRET" ]]; then
+    warn "Client Secret boş, Microsoft SSO atlandı"
+    MS_CLIENT_ID=""
+    return 0
+  fi
+
+  prompt "Tenant ID [common = tüm Microsoft hesapları]:"
+  read -r MS_TENANT_ID
+  MS_TENANT_ID="${MS_TENANT_ID:-common}"
+
+  prompt "Redirect URI [örn: http://172.16.10.52:7860/auth/microsoft/callback]:"
+  read -r MS_REDIRECT_URI
+  if [[ -z "$MS_REDIRECT_URI" ]]; then
+    warn "Redirect URI boş, Microsoft SSO atlandı"
+    MS_CLIENT_ID=""
+    return 0
+  fi
+
+  echo ""
+  echo -e "  ${DIM}İzin verilecek e-posta domainleri (virgülle ayır).${NC}"
+  echo -e "  ${DIM}Boş bırakırsan tüm Microsoft hesaplarına izin verilir.${NC}"
+  prompt "İzin verilen domainler [örn: sirket.com,baska.com]:"
+  read -r MS_ALLOWED_DOMAINS
+
+  echo ""
+  info "Microsoft SSO yapılandırıldı"
+  echo -e "  ${DIM}  Tenant: ${MS_TENANT_ID}${NC}"
+  echo -e "  ${DIM}  İzinli domainler: ${MS_ALLOWED_DOMAINS:-<tümü>}${NC}"
+  divider
+}
+
+# ── Optional Cloudflare Turnstile CAPTCHA Setup ────────────────────────────────
+setup_captcha() {
+  echo ""
+  echo -e "  ${W}── CAPTCHA (İsteğe Bağlı) ──────────────────────${NC}"
+  echo -e "  ${DIM}  Cloudflare Turnstile — ücretsiz, gizlilik odaklı CAPTCHA.${NC}"
+  echo -e "  ${DIM}  Almak için: https://dash.cloudflare.com → Turnstile${NC}"
+  echo ""
+  prompt "CAPTCHA yapılandırmak istiyor musunuz? [e/H]:"
+  read -r cap_choice
+  cap_choice="${cap_choice,,}"
+
+  if [[ "$cap_choice" != "e" && "$cap_choice" != "evet" && "$cap_choice" != "y" && "$cap_choice" != "yes" ]]; then
+    TURNSTILE_SITE_KEY=""
+    info "CAPTCHA atlandı"
+    return 0
+  fi
+
+  prompt "Turnstile Site Key:"
+  read -r TURNSTILE_SITE_KEY
+  TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY//[[:space:]]/}"
+
+  prompt "Turnstile Secret Key:"
+  read -rs TURNSTILE_SECRET_KEY
+  echo ""
+
+  if [[ -z "$TURNSTILE_SITE_KEY" || -z "$TURNSTILE_SECRET_KEY" ]]; then
+    warn "Eksik değerler, CAPTCHA atlandı"
+    TURNSTILE_SITE_KEY=""
+    return 0
+  fi
+
+  info "Cloudflare Turnstile CAPTCHA etkinleştirildi"
+  divider
 }
 
 # ── Full Setup Wizard ──────────────────────────────────────────────────────────
@@ -554,6 +674,8 @@ run_wizard() {
   select_model
   pull_selected_model
   setup_admin_account
+  setup_microsoft_sso
+  setup_captcha
   save_config
 }
 
