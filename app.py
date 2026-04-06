@@ -28,7 +28,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from pydantic import BaseModel, field_validator
 
 # ── Logging (A09) ──────────────────────────────────────────────────────────────
@@ -50,8 +50,15 @@ USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 OLLAMA_URL = "http://127.0.0.1:11434"   # localhost-only, prevents SSRF (A10)
 
-# A02: bcrypt password hashing
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# A02: bcrypt password hashing (direct bcrypt — passlib 1.7 incompatible with bcrypt 4.x)
+def _hash_password(plain: str) -> str:
+    return _bcrypt.hashpw(plain.encode(), _bcrypt.gensalt()).decode()
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return _bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
 
 # A07: in-memory rate limiting  {ip: [timestamp, ...]}
 _login_attempts: dict[str, list[float]] = defaultdict(list)
@@ -230,7 +237,7 @@ async def login(request: Request, data: LoginRequest):
     # A03: Generic error — don't reveal if username exists
     password_ok = (
         user is not None
-        and pwd_ctx.verify(data.password, user["password_hash"])
+        and _verify_password(data.password, user["password_hash"])
     )
 
     if not password_ok:
@@ -318,7 +325,7 @@ async def create_user(req: CreateUserRequest, admin: dict = Depends(require_admi
 
     users.append({
         "username": req.username,
-        "password_hash": pwd_ctx.hash(req.password),
+        "password_hash": _hash_password(req.password),
         "role": req.role,
         "created_at": datetime.utcnow().isoformat(),
         "created_by": admin["username"],
