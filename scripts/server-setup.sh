@@ -21,8 +21,14 @@ step()  { echo -e "\n  ${C}▶${NC}  ${W}$*${NC}"; }
 banner() {
 cat << 'EOF'
 
-  NordGpT — Server Setup
-  ═══════════════════════
+  ███╗   ██╗ ██████╗ ██████╗ ██████╗  ██████╗ ██████╗ ████████╗
+  ████╗  ██║██╔═══██╗██╔══██╗██╔══██╗██╔════╝ ██╔══██╗╚══██╔══╝
+  ██╔██╗ ██║██║   ██║██████╔╝██║  ██║██║  ███╗██████╔╝   ██║
+  ██║╚██╗██║██║   ██║██╔══██╗██║  ██║██║   ██║██╔═══╝    ██║
+  ██║ ╚████║╚██████╔╝██║  ██║██████╔╝╚██████╔╝██║        ██║
+  ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝  ╚═════╝ ╚═╝        ╚═╝
+
+  Server Setup  |  Gizlilik önce gelir — internet gerekmez
 
 EOF
 }
@@ -233,17 +239,17 @@ setup_firewall() {
 # ── Run Wizard ─────────────────────────────────────────────────────────────────
 run_nordgpt_wizard() {
   step "NordGpT kurulum sihirbazı başlatılıyor..."
-  echo -e "  ${DIM}Admin hesabı ve model seçimi için wizard çalışacak.${NC}"
-  echo -e "  ${DIM}Sihirbazı tamamladıktan sonra servis başlatılacak.${NC}"
+  echo ""
+  echo -e "  ${W}Sihirbaz şunları yapılandırır:${NC}"
+  echo -e "  ${DIM}  • Donanım analizi (RAM/GPU → model tier)${NC}"
+  echo -e "  ${DIM}  • Dil ve sektör seçimi${NC}"
+  echo -e "  ${DIM}  • Ollama model seçimi / indirmesi${NC}"
+  echo -e "  ${DIM}  • Admin hesabı oluşturma${NC}"
+  echo -e "  ${DIM}  • Microsoft Entra ID SSO (opsiyonel)${NC}"
+  echo -e "  ${DIM}  • CAPTCHA yapılandırma (opsiyonel)${NC}"
   echo ""
   cd "$INSTALL_DIR"
-  sudo -u "$SERVICE_USER" bash nordgpt.sh reset 2>/dev/null || true
-  # Run just the wizard parts (model + admin) without starting the server
-  sudo -u "$SERVICE_USER" bash -c "
-    source '$INSTALL_DIR/.venv/bin/activate'
-    cd '$INSTALL_DIR'
-    bash nordgpt.sh reset
-  " || warn "Wizard tamamlanamadı, web arayüzünden devam edin"
+  sudo -u "$SERVICE_USER" bash nordgpt.sh
 }
 
 # ── Start ──────────────────────────────────────────────────────────────────────
@@ -264,16 +270,21 @@ start_service() {
 print_summary() {
   SERVER_IP=$(hostname -I | awk '{print $1}')
   echo ""
-  echo -e "  ${G}╔══════════════════════════════════════════════╗${NC}"
-  echo -e "  ${G}║  🚀 NordGpT Kurulumu Tamamlandı!             ║${NC}"
-  echo -e "  ${G}║                                              ║${NC}"
-  echo -e "  ${G}║  ${W}http://${SERVER_IP}:${PORT}${G}                 ║${NC}"
-  echo -e "  ${G}║                                              ║${NC}"
-  echo -e "  ${G}║  Yararlı komutlar:                           ║${NC}"
-  echo -e "  ${G}║  ${DIM}sudo systemctl status nordgpt${G}              ║${NC}"
-  echo -e "  ${G}║  ${DIM}sudo journalctl -u nordgpt -f${G}              ║${NC}"
-  echo -e "  ${G}║  ${DIM}sudo systemctl restart nordgpt${G}             ║${NC}"
-  echo -e "  ${G}╚══════════════════════════════════════════════╝${NC}"
+  echo -e "  ${G}╔══════════════════════════════════════════════════════╗${NC}"
+  echo -e "  ${G}║  🚀 NordGpT Kurulumu Tamamlandı!                     ║${NC}"
+  echo -e "  ${G}║                                                      ║${NC}"
+  echo -e "  ${G}║  ${W}http://${SERVER_IP}:${PORT}${G}                           ║${NC}"
+  echo -e "  ${G}║                                                      ║${NC}"
+  echo -e "  ${G}║  Yararlı komutlar:                                   ║${NC}"
+  echo -e "  ${G}║  ${DIM}sudo systemctl status nordgpt${G}                      ║${NC}"
+  echo -e "  ${G}║  ${DIM}sudo journalctl -u nordgpt -f${G}                      ║${NC}"
+  echo -e "  ${G}║  ${DIM}sudo systemctl restart nordgpt${G}                     ║${NC}"
+  echo -e "  ${G}║  ${DIM}cd /opt/nordgpt && sudo -u nordgpt git pull${G}        ║${NC}"
+  echo -e "  ${G}║                                                      ║${NC}"
+  echo -e "  ${G}║  Cloudflare Tunnel için:                             ║${NC}"
+  echo -e "  ${G}║  ${DIM}cloudflared tunnel create nordgpt${G}                  ║${NC}"
+  echo -e "  ${G}║  ${DIM}https://dash.cloudflare.com → Tunnels${G}              ║${NC}"
+  echo -e "  ${G}╚══════════════════════════════════════════════════════╝${NC}"
   echo ""
 }
 

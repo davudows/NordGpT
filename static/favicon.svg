@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <rect width="64" height="64" rx="14" fill="#1a1a1a"/>
+
+  <!-- Antenna -->
+  <line x1="32" y1="14" x2="32" y2="7" stroke="#10a37f" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="32" cy="5" r="3.5" fill="#10a37f"/>
+
+  <!-- Head -->
+  <rect x="11" y="14" width="42" height="32" rx="9" fill="#10a37f" opacity="0.12"/>
+  <rect x="11" y="14" width="42" height="32" rx="9" fill="none" stroke="#10a37f" stroke-width="2.2"/>
+
+  <!-- Eyes -->
+  <rect x="19" y="25" width="9" height="7" rx="3.5" fill="#10a37f"/>
+  <rect x="36" y="25" width="9" height="7" rx="3.5" fill="#10a37f"/>
+  <!-- Eye shine -->
+  <circle cx="21.5" cy="27" r="1.8" fill="#fff" opacity="0.55"/>
+  <circle cx="38.5" cy="27" r="1.8" fill="#fff" opacity="0.55"/>
+
+  <!-- Mouth -->
+  <path d="M21 38 Q32 44.5 43 38" stroke="#10a37f" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+
+  <!-- Ears -->
+  <rect x="4"  y="23" width="7" height="10" rx="3.5" fill="#10a37f" opacity="0.65"/>
+  <rect x="53" y="23" width="7" height="10" rx="3.5" fill="#10a37f" opacity="0.65"/>
+
+  <!-- Bottom connector -->
+  <rect x="26" y="46" width="12" height="5" rx="2.5" fill="#10a37f" opacity="0.5"/>
+</svg>

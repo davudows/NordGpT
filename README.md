@@ -16,6 +16,8 @@
 [![Ollama](https://img.shields.io/badge/Ollama-Compatible-black?style=flat-square)](https://ollama.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![OWASP](https://img.shields.io/badge/OWASP_Top_10-Mitigated-blue?style=flat-square)](https://owasp.org/Top10/)
+[![SSO](https://img.shields.io/badge/Microsoft_SSO-Entra_ID-0078D4?style=flat-square&logo=microsoft&logoColor=white)](https://learn.microsoft.com/entra)
+[![Cloudflare](https://img.shields.io/badge/Cloudflare_Tunnel-Ready-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
 
 *İnternet gerekmez. Verileriniz dışarı çıkmaz. Tamamen yerel.*
 
@@ -33,13 +35,17 @@
 - [Kurulum — Ubuntu / Debian](#-kurulum--ubuntu--debian)
 - [Kurulum — Docker](#-kurulum--docker)
 - [Kurulum Sihirbazı](#-kurulum-sihirbazı)
+- [Production Kurulumu](#-production-kurulumu)
+- [Microsoft SSO](#-microsoft-sso-entra-id--azure-ad)
+- [Dosya Yükleme](#-dosya-yükleme)
 - [Komutlar](#-komutlar)
 - [Özellikler](#-özellikler)
 - [Model Kategorileri](#-model-kategorileri)
 - [Dil Desteği](#-dil-desteği)
 - [Güvenlik (OWASP Top 10)](#-güvenlik-owasp-top-10)
 - [Proje Yapısı](#-proje-yapısı)
-- [Ortam Değişkenleri](#-ortam-değişkenleri)
+- [Yapılandırma (.nordgpt.conf)](#-yapılandırma-nordgptconf)
+- [API Referansı](#-api-referansı)
 - [Sık Sorulan Sorular](#-sık-sorulan-sorular)
 - [Katkı](#-katkı)
 
@@ -54,6 +60,9 @@ NordGpT, **tamamen yerel çalışan** bir AI chat arayüzüdür. ChatGPT veya Cl
 - Donanımınızı analiz ederek uygun modeli önerir
 - Sektörünüze özel (siber güvenlik, finans, yazılım...) model seçimi
 - ChatGPT benzeri modern web arayüzü — tarayıcınızda açılır
+- **Microsoft Entra ID / Azure AD** ile kurumsal SSO desteği
+- **Dosya yükleme** — görsel, PDF, DOCX ve TXT desteği
+- **Cloudflare Tunnel** ile güvenli production dağıtımı
 
 ---
 
@@ -61,7 +70,7 @@ NordGpT, **tamamen yerel çalışan** bir AI chat arayüzüdür. ChatGPT veya Cl
 
 | Chat Arayüzü | Ayarlar & Model Kütüphanesi | Login |
 |---|---|---|
-| Dark tema, streaming yanıt | Kategori bazlı model indirme | Güvenli giriş |
+| Dark tema, streaming yanıt, dosya ekleme | Kategori bazlı model indirme | Güvenli giriş + MS SSO |
 
 ---
 
@@ -277,6 +286,208 @@ Hangi alanda kullanacaksınız?
 ✔  Admin hesabı oluşturuldu: davut
 ```
 
+### Adım 7 — Microsoft SSO (Opsiyonel)
+```
+── Microsoft Entra ID / Azure AD SSO ────────
+  Kurumsal Microsoft hesaplarıyla giriş için yapılandırın.
+  Atlamak için Enter'a basın.
+
+? Microsoft Client ID [boş bırak = atla]:
+? Microsoft Client Secret:
+? Tenant ID [common]:
+? Redirect URI [https://yourdomain.com/auth/microsoft/callback]:
+? İzin verilen domain'ler [boş = tümü]:  sirket.com,baska.com
+? Sadece Microsoft girişi? (şifre girişini devre dışı bırakır) [e/H]: e
+✔  Microsoft SSO yapılandırıldı.
+```
+
+### Adım 8 — CAPTCHA (Opsiyonel)
+```
+── Cloudflare Turnstile CAPTCHA ─────────────
+  Login formuna CAPTCHA eklemek ister misiniz?
+  (Basılı-tut CAPTCHA her zaman aktiftir — harici servis gerekmez)
+  Cloudflare Turnstile için API anahtarları girin veya atlayın.
+
+? Turnstile Site Key [boş bırak = atla]:
+? Turnstile Secret Key:
+✔  Turnstile CAPTCHA yapılandırıldı.
+```
+
+---
+
+## 🚀 Production Kurulumu
+
+### Cloudflare Tunnel (Önerilen)
+
+Cloudflare Tunnel, açık port veya NAT yapılandırması gerektirmeden uygulamanızı güvenli şekilde internete açar.
+
+```bash
+# cloudflared kur (Ubuntu/Debian)
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+
+# Cloudflare hesabınıza giriş yapın
+cloudflared tunnel login
+
+# Tunnel oluşturun
+cloudflared tunnel create nordgpt
+
+# Yapılandırma dosyası (~/.cloudflared/config.yml)
+cat > ~/.cloudflared/config.yml <<EOF
+tunnel: <TUNNEL_ID>
+credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: chat.nordisglobal.com
+    service: http://localhost:7860
+  - service: http_status:404
+EOF
+
+# DNS kaydı oluşturun
+cloudflared tunnel route dns nordgpt chat.nordisglobal.com
+
+# Tunnel'ı başlatın
+cloudflared tunnel run nordgpt
+```
+
+> Cloudflare Tunnel sayesinde sunucunuzda hiçbir port açmanıza gerek kalmaz. Tüm trafik Cloudflare altyapısı üzerinden şifreli geçer.
+
+### Systemd Servisi (Linux)
+
+NordGpT'yi sistem başlangıcında otomatik başlatmak için:
+
+```bash
+# Servis dosyasını kopyala
+sudo cp scripts/nordgpt.service /etc/systemd/system/
+
+# Servis dosyasında kullanıcı ve yol bilgilerini düzenle
+sudo nano /etc/systemd/system/nordgpt.service
+
+# Servisi etkinleştir ve başlat
+sudo systemctl daemon-reload
+sudo systemctl enable --now nordgpt
+
+# Durumu kontrol et
+sudo systemctl status nordgpt
+```
+
+### Nginx Reverse Proxy (Alternatif)
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name chat.nordisglobal.com;
+
+    ssl_certificate     /etc/letsencrypt/live/chat.nordisglobal.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chat.nordisglobal.com/privkey.pem;
+
+    location / {
+        proxy_pass         http://127.0.0.1:7860;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection keep-alive;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+---
+
+## 🏢 Microsoft SSO (Entra ID / Azure AD)
+
+NordGpT, Microsoft Entra ID (eski adıyla Azure Active Directory) ile OAuth2 tabanlı kurumsal SSO destekler.
+
+### Azure Portal Yapılandırması
+
+1. [Azure Portal](https://portal.azure.com) → **App registrations** → **New registration**
+2. Uygulama adı girin (örn. `NordGpT`)
+3. **Redirect URI** olarak şunu ekleyin: `https://chat.nordisglobal.com/auth/microsoft/callback`
+4. **Certificates & secrets** → **New client secret** ile secret oluşturun
+5. **Overview** sayfasından `Application (client) ID` ve `Directory (tenant) ID` değerlerini kopyalayın
+
+### .nordgpt.conf Yapılandırması
+
+```ini
+MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_CLIENT_SECRET=your-client-secret
+MICROSOFT_TENANT_ID=common          # veya belirli tenant ID
+MICROSOFT_REDIRECT_URI=https://chat.nordisglobal.com/auth/microsoft/callback
+ALLOWED_DOMAINS=sirket.com,baska.com  # boş bırakılırsa tüm MS hesapları kabul edilir
+MICROSOFT_ONLY=true                  # şifre girişini devre dışı bırakır
+```
+
+### Çalışma Akışı
+
+```
+Kullanıcı → /auth/microsoft
+         → Microsoft OAuth2 onay sayfası
+         → /auth/microsoft/callback
+         → Domain kontrolü (ALLOWED_DOMAINS)
+         → Oturum oluşturma → Ana sayfa
+```
+
+### MICROSOFT_ONLY Modu
+
+`MICROSOFT_ONLY=true` ayarlandığında:
+- Login sayfasındaki şifre formu gizlenir
+- Kullanıcı otomatik olarak Microsoft giriş sayfasına yönlendirilir
+- Admin hariç tüm kullanıcılar Microsoft hesabıyla giriş yapmak zorundadır
+
+### Domain Allowlist
+
+`ALLOWED_DOMAINS` ile yalnızca belirli kurumsal domain'lerden giriş kabul edilir:
+
+```ini
+# Sadece şirket çalışanlarına izin ver
+ALLOWED_DOMAINS=sirket.com
+
+# Birden fazla domain
+ALLOWED_DOMAINS=sirket.com,partner.com,holding.com.tr
+
+# Boş = tüm Microsoft hesapları (@gmail, @hotmail dahil)
+ALLOWED_DOMAINS=
+```
+
+---
+
+## 📎 Dosya Yükleme
+
+NordGpT, chat mesajlarına dosya eklemeyi destekler. Paperclip (📎) düğmesine tıklayarak veya sürükle-bırak ile dosya yükleyebilirsiniz.
+
+### Desteklenen Dosya Türleri
+
+| Tür | Format | Model Davranışı |
+|---|---|---|
+| **Görsel** | JPG, PNG, GIF, WEBP | Base64 olarak multimodal Ollama modeline gönderilir |
+| **PDF** | .pdf | Metin çıkarılır, konuşmaya bağlam olarak eklenir |
+| **Word** | .docx | Metin çıkarılır, konuşmaya bağlam olarak eklenir |
+| **Metin** | .txt | Doğrudan konuşmaya bağlam olarak eklenir |
+
+### Sınırlamalar
+
+| Parametre | Değer |
+|---|---|
+| Maksimum dosya boyutu | 20 MB |
+| Mesaj başına maksimum dosya | 5 adet |
+| Görsel desteği | Yalnızca multimodal modeller (`llava`, `bakllava` vb.) |
+
+### Kullanım
+
+```
+Chat kutusunun sol alt köşesindeki 📎 düğmesine tıklayın
+→ Dosya seçin (veya sürükleyip bırakın)
+→ Önizleme gösterilir
+→ Mesajınızı yazın ve gönderin
+```
+
+> **Not:** PDF ve DOCX dosyalarının metni otomatik olarak çıkarılır ve AI modeline bağlam olarak aktarılır. Görseller için modelin multimodal desteklemesi gerekir (örn. `llava:7b`).
+
+### Yüklenen Dosyalar
+
+Yüklenen dosyalar `data/uploads/` klasöründe saklanır. Sunucunuzdan dışarı çıkmaz.
+
 ---
 
 ## 📟 Komutlar
@@ -321,6 +532,7 @@ NORDGPT_PORT=8080 ./nordgpt.sh
 | **Durdur** | Üretimi anında durdurma (Ctrl+C benzeri) |
 | **Geçici Sohbet** | Toggle ile — hiçbir şey kaydedilmez |
 | **Mobil** | Responsive tasarım, dokunmatik uyumlu |
+| **Dosya Ekleme** | Görsel, PDF, DOCX, TXT — paperclip düğmesiyle |
 
 ### Sohbet Yönetimi
 | Özellik | Detay |
@@ -330,6 +542,15 @@ NORDGPT_PORT=8080 ./nordgpt.sh
 | **Yeniden Adlandır** | Sohbet başlığını düzenle |
 | **Sil** | Tek tek veya toplu silme |
 | **Otomatik Başlık** | İlk mesajdan başlık oluşturulur |
+
+### Giriş & Kimlik Doğrulama
+| Özellik | Detay |
+|---|---|
+| **Şifre Girişi** | bcrypt hash, rate limiting, press-and-hold CAPTCHA |
+| **Microsoft SSO** | OAuth2 / Entra ID / Azure AD, domain allowlist |
+| **MICROSOFT_ONLY** | Şifre girişini devre dışı bırakır, otomatik MS yönlendirmesi |
+| **Cloudflare Turnstile** | Opsiyonel harici CAPTCHA (site key + secret key) |
+| **Press & Hold CAPTCHA** | 3 saniye basılı tut — harici servis gerektirmez, her zaman aktif |
 
 ### ⚙️ Ayarlar Paneli
 | Sekme | İçerik |
@@ -414,14 +635,25 @@ NordGpT, OWASP Top 10 2021 standartlarına göre tasarlanmıştır:
 | **A03** | Injection | Model adı regex allowlist `^[a-zA-Z0-9][\w\-.:]{0,99}$`. Chat ID UUID validasyonu. Path traversal önleme. Pydantic ile tüm input validasyonu. |
 | **A04** | Insecure Design | Yeni kullanıcı **sadece admin** oluşturabilir. Kullanıcılar yalnızca kendi sohbetlerini görebilir. |
 | **A05** | Security Misconfiguration | 6 güvenlik header'ı (CSP, X-Frame-Options, HSTS vb.). Localhost-only CORS. Swagger/ReDoc devre dışı (prod). |
-| **A07** | Auth Failures | **Rate limiting:** IP başına 5 deneme / 5 dakika. 24 saatlik session süresi. Generic hata mesajları (kullanıcı adı enumeration yok). |
-| **A09** | Logging Failures | Auth olayları ayrı audit logger'a yazılır: `LOGIN_OK`, `LOGIN_FAIL`, `LOGIN_BLOCKED`, `USER_CREATED`, `USER_DELETED`. |
+| **A07** | Auth Failures | **Rate limiting:** IP başına 5 deneme / 5 dakika (Cloudflare arkasında CF-Connecting-IP kullanılır). 24 saatlik session süresi. Press-and-hold CAPTCHA. Generic hata mesajları (kullanıcı adı enumeration yok). |
+| **A09** | Logging Failures | Auth olayları ayrı audit logger'a yazılır: `LOGIN_OK`, `LOGIN_FAIL`, `LOGIN_BLOCKED`, `USER_CREATED`, `USER_DELETED`, `SSO_LOGIN_OK`, `SSO_DOMAIN_BLOCKED`. |
 | **A10** | SSRF | Ollama URL hardcoded `127.0.0.1` — dışarıya istek atılamaz. |
+
+### Ek Güvenlik Önlemleri
+
+| Alan | Uygulanan Önlem |
+|---|---|
+| **MS SSO Domain Allowlist** | `ALLOWED_DOMAINS` ile yalnızca belirtilen kurumsal domain'lerden giriş kabul edilir |
+| **Dosya Yükleme Validasyonu** | 20 MB boyut sınırı, MIME type whitelist (jpg/png/gif/webp/pdf/docx/txt), path traversal önleme |
+| **CF-Connecting-IP** | Cloudflare arkasında gerçek IP tespiti — rate limiting doğru IP'ye uygulanır |
+| **Press & Hold CAPTCHA** | 3 saniyelik basılı tut — bot saldırılarına karşı, harici servis gerektirmez; başarısız girişte sıfırlanır |
+| **Cloudflare Turnstile** | Opsiyonel ek CAPTCHA katmanı |
 
 ### Güvenlik Notları
 - Şifre kurulum sırasında terminal geçmişine **yazılmaz** (stdin üzerinden Python'a aktarılır)
 - `data/users.json` dosyasını dışarıya paylaşmayın
 - Production ortamında HTTPS + `secure=True` cookie kullanın
+- Microsoft OAuth2 `client_secret` değerini `.nordgpt.conf` dışında tutmayın ve git'e commit etmeyin
 
 ---
 
@@ -430,23 +662,30 @@ NordGpT, OWASP Top 10 2021 standartlarına göre tasarlanmıştır:
 ```
 NordGpT/
 │
-├── nordgpt.sh          # Ana başlatıcı & kurulum sihirbazı
-├── app.py              # FastAPI backend
-├── models.json         # Kategori bazlı model kataloğu
-├── requirements.txt    # Python bağımlılıkları
+├── nordgpt.sh              # Ana başlatıcı & kurulum sihirbazı
+├── app.py                  # FastAPI backend
+├── models.json             # Kategori bazlı model kataloğu
+├── requirements.txt        # Python bağımlılıkları
 │
 ├── static/
-│   ├── index.html      # Ana chat arayüzü (SPA)
-│   └── login.html      # Login sayfası
+│   ├── index.html          # Ana chat arayüzü (SPA)
+│   ├── login.html          # Login sayfası (MS SSO + press-and-hold CAPTCHA)
+│   └── favicon.svg         # Robot ikonu favicon
+│
+├── scripts/
+│   ├── server-setup.sh     # Sunucu kurulum scripti
+│   ├── update.sh           # Güncelleme scripti
+│   └── nordgpt.service     # Systemd servis tanımı
 │
 ├── data/
-│   ├── users.json      # Kullanıcılar (bcrypt hash'li)
-│   └── chats/          # Sohbet geçmişi (JSON)
-│       ├── <uuid>.json
-│       └── ...
+│   ├── users.json          # Kullanıcılar (bcrypt hash'li)
+│   ├── chats/              # Sohbet geçmişi (JSON)
+│   │   ├── <uuid>.json
+│   │   └── ...
+│   └── uploads/            # Yüklenen dosyalar (görsel, PDF, DOCX, TXT)
 │
-├── .nordgpt.conf       # Yapılandırma (kurulum sihirbazı tarafından oluşturulur)
-└── .venv/              # Python sanal ortamı (otomatik oluşturulur)
+├── .nordgpt.conf           # Yapılandırma (kurulum sihirbazı tarafından oluşturulur)
+└── .venv/                  # Python sanal ortamı (otomatik oluşturulur)
 ```
 
 ### Sohbet Dosyası Formatı (`data/chats/<uuid>.json`)
@@ -460,15 +699,54 @@ NordGpT/
   "temporary": false,
   "created_by": "davut",
   "messages": [
-    { "role": "user",      "content": "SQL injection nedir?", "timestamp": "..." },
-    { "role": "assistant", "content": "SQL injection...",     "timestamp": "..." }
+    {
+      "role": "user",
+      "content": "SQL injection nedir?",
+      "timestamp": "...",
+      "attachments": ["file_id_1"]
+    },
+    {
+      "role": "assistant",
+      "content": "SQL injection...",
+      "timestamp": "..."
+    }
   ]
 }
 ```
 
 ---
 
-## ⚙️ Ortam Değişkenleri
+## ⚙️ Yapılandırma (.nordgpt.conf)
+
+Kurulum sihirbazı tarafından otomatik oluşturulan yapılandırma dosyası:
+
+```ini
+# ── Temel Ayarlar ────────────────────────────────────────────
+LANGUAGE=tr
+CATEGORY=general
+DEFAULT_MODEL=llama3.1:8b
+HW_TIER=medium
+
+# ── Microsoft Entra ID / Azure AD SSO (Opsiyonel) ────────────
+# Azure Portal → App registrations → Uygulama kimlik bilgileri
+MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_CLIENT_SECRET=your-client-secret-here
+MICROSOFT_TENANT_ID=common          # veya belirli tenant UUID
+MICROSOFT_REDIRECT_URI=https://chat.nordisglobal.com/auth/microsoft/callback
+
+# İzin verilen e-posta domain'leri (boş = tüm MS hesapları)
+ALLOWED_DOMAINS=sirket.com,baska.com
+
+# Şifre girişini devre dışı bırakır, otomatik MS yönlendirmesi yapar
+MICROSOFT_ONLY=true
+
+# ── Cloudflare Turnstile CAPTCHA (Opsiyonel) ─────────────────
+# https://dash.cloudflare.com → Turnstile → Site oluştur
+TURNSTILE_SITE_KEY=0x4AAAAAAA...
+TURNSTILE_SECRET_KEY=0x4AAAAAAA...
+```
+
+### Ortam Değişkeni ile Port Değiştirme
 
 ```bash
 # Farklı port kullan (varsayılan: 7860)
@@ -488,9 +766,12 @@ NordGpT'nin FastAPI backend'i şu endpoint'leri sunar:
 ### Auth
 | Method | Endpoint | Açıklama |
 |---|---|---|
-| `POST` | `/auth/login` | Giriş (rate limited) |
+| `POST` | `/auth/login` | Giriş (rate limited, press-and-hold CAPTCHA) |
 | `POST` | `/auth/logout` | Çıkış |
 | `GET` | `/auth/me` | Mevcut kullanıcı bilgisi |
+| `GET` | `/auth/microsoft` | Microsoft SSO yönlendirmesi |
+| `GET` | `/auth/microsoft/callback` | OAuth2 geri dönüş endpoint'i |
+| `GET` | `/api/auth/providers` | Kullanılabilir giriş yöntemleri (şifre / SSO) |
 
 ### Chat
 | Method | Endpoint | Açıklama |
@@ -501,6 +782,12 @@ NordGpT'nin FastAPI backend'i şu endpoint'leri sunar:
 | `PATCH` | `/api/history/{id}` | Sohbet başlığını değiştir |
 | `DELETE` | `/api/history/{id}` | Sohbet sil |
 | `DELETE` | `/api/history` | Tüm geçmişi sil |
+
+### Dosya Yükleme
+| Method | Endpoint | Açıklama |
+|---|---|---|
+| `POST` | `/api/upload` | Dosya yükle (görsel/PDF/DOCX/TXT, maks 20MB) |
+| `GET` | `/api/upload/{file_id}` | Yüklenen dosyayı getir |
 
 ### Modeller
 | Method | Endpoint | Açıklama |
@@ -551,6 +838,27 @@ A: `NORDGPT_PORT=8080 ./nordgpt.sh` ile farklı port kullanın.
 
 **Q: macOS'ta "Ollama" izin hatası alıyorum.**
 A: Sistem Tercihleri → Gizlilik ve Güvenlik → Ollama'ya izin verin.
+
+**Q: Microsoft SSO nasıl kurulur?**
+A: Azure Portal'da uygulama kaydı oluşturun, ardından `.nordgpt.conf` dosyasına `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` ve `MICROSOFT_REDIRECT_URI` değerlerini ekleyin. Detaylar için [Microsoft SSO](#-microsoft-sso-entra-id--azure-ad) bölümüne bakın.
+
+**Q: Sadece belirli şirket çalışanlarının giriş yapmasını istiyorum.**
+A: `.nordgpt.conf` içinde `ALLOWED_DOMAINS=sirket.com` olarak ayarlayın. Yalnızca bu domain'e ait Microsoft hesapları kabul edilir.
+
+**Q: MICROSOFT_ONLY=true ile admin girişi nasıl yapılır?**
+A: `MICROSOFT_ONLY=true` açık olsa bile `/login?fallback=1` adresine giderek şifre formu üzerinden admin girişi yapılabilir.
+
+**Q: Hangi dosya türleri yüklenebilir?**
+A: JPG, PNG, GIF, WEBP (görseller), PDF, DOCX ve TXT dosyaları desteklenir. Maksimum boyut 20 MB, mesaj başına en fazla 5 dosya eklenebilir.
+
+**Q: Yüklediğim görseli model görebilir mi?**
+A: Yalnızca multimodal modeller görselleri işleyebilir (örn. `llava:7b`, `bakllava:7b`). Standart dil modelleri görsel içeriği göremez; bu durumda görsel görmezden gelinir.
+
+**Q: Press-and-hold CAPTCHA nedir, nasıl çalışır?**
+A: Login formunda görünen "Basılı Tut" düğmesine 3 saniye basılı tutulması gereken bir bot engel mekanizmasıdır. Harici bir CAPTCHA servisi gerektirmez ve her başarısız giriş denemesinde sıfırlanır.
+
+**Q: Cloudflare Turnstile ile press-and-hold CAPTCHA birlikte kullanılabilir mi?**
+A: Evet. Press-and-hold CAPTCHA her zaman aktiftir. Cloudflare Turnstile, `.nordgpt.conf` içinde `TURNSTILE_SITE_KEY` ve `TURNSTILE_SECRET_KEY` tanımlandığında ek bir katman olarak devreye girer.
 
 ---
 
