@@ -83,9 +83,11 @@ detect_hardware() {
   fi
 
   EFFECTIVE=$(( GPU_VRAM_GB > 0 ? GPU_VRAM_GB : RAM_GB ))
-  if   (( EFFECTIVE >= 32 )); then HW_TIER="high"
-  elif (( EFFECTIVE >= 16 )); then HW_TIER="medium"
-  else                              HW_TIER="low"
+  if   (( EFFECTIVE >= 48 )); then HW_TIER="very_high"
+  elif (( EFFECTIVE >= 16 )); then HW_TIER="high"
+  elif (( EFFECTIVE >=  8 )); then HW_TIER="medium"
+  elif (( EFFECTIVE >=  4 )); then HW_TIER="low"
+  else                              HW_TIER="very_low"
   fi
 }
 
@@ -97,9 +99,11 @@ print_hardware() {
   printf "  ${DIM}%-8s${NC} %s\n"      "GPU:"  "$GPU_NAME"
   [[ $GPU_VRAM_GB -gt 0 ]] && printf "  ${DIM}%-8s${NC} %s GB\n" "VRAM:" "$GPU_VRAM_GB"
   case "$HW_TIER" in
-    high)   echo -e "  ${DIM}Seviye:${NC} ${G}🔥 Yüksek${NC}  — 70B+ modeller çalışabilir" ;;
-    medium) echo -e "  ${DIM}Seviye:${NC} ${Y}⚡ Orta${NC}   — 7-13B modeller önerilir" ;;
-    low)    echo -e "  ${DIM}Seviye:${NC} ${R}🌱 Düşük${NC}  — Mini modeller gerekli" ;;
+    very_high) echo -e "  ${DIM}Seviye:${NC} ${G}🚀 Çok Yüksek${NC} — 32B+ modeller çalışır (qwen2.5:32b, llama3.1:70b)" ;;
+    high)      echo -e "  ${DIM}Seviye:${NC} ${G}🔥 Yüksek${NC}     — 14B modeller önerilir (qwen2.5:14b, phi4)" ;;
+    medium)    echo -e "  ${DIM}Seviye:${NC} ${Y}⚡ Orta${NC}       — 7B modeller önerilir (qwen2.5:7b, phi4-mini)" ;;
+    low)       echo -e "  ${DIM}Seviye:${NC} ${Y}🌿 Düşük${NC}      — 1-3B modeller önerilir (qwen2.5:1.5b, phi3:mini)" ;;
+    very_low)  echo -e "  ${DIM}Seviye:${NC} ${R}🌱 Çok Düşük${NC}  — Yalnızca nano modeller (qwen2.5:0.5b, tinyllama)" ;;
   esac
   divider
 }
@@ -114,6 +118,8 @@ check_existing() {
   PREV_CATEGORY="general"
   PREV_MODEL=""
   PREV_TIER="low"
+  SELECTED_MODEL=""
+  EXTRA_MODELS=()
 
   command -v ollama &>/dev/null && OLLAMA_INSTALLED=true
 
@@ -277,167 +283,215 @@ lang_score() {
 }
 
 # ── Model Lists (per category × tier) ─────────────────────────────────────────
+# Format: "model:tag|RAM_GB|description"
+# Tiers: very_low(<4GB)  low(4-8GB)  medium(8-16GB)  high(16-32GB)  very_high(32+GB)
 get_model_list() {
   local cat="$1" tier="$2"
   case "${cat}:${tier}" in
-    cybersecurity:high)   echo "llama3.1:70b mixtral:8x7b deepseek-coder:33b qwen2.5:72b" ;;
-    cybersecurity:medium) echo "llama3.1:8b mistral:7b qwen2.5:7b codellama:13b"          ;;
-    cybersecurity:low)    echo "phi3:mini deepseek-coder:1.3b qwen2.5:0.5b tinyllama"      ;;
-    finance:high)         echo "llama3.1:70b mixtral:8x7b qwen2.5:72b"                    ;;
-    finance:medium)       echo "llama3.1:8b qwen2.5:7b mistral:7b"                        ;;
-    finance:low)          echo "phi3:mini qwen2.5:0.5b gemma2:2b"                         ;;
-    coding:high)          echo "deepseek-coder-v2:16b codellama:34b starcoder2:15b llama3.1:70b" ;;
-    coding:medium)        echo "codellama:13b deepseek-coder:6.7b qwen2.5:7b starcoder2:7b" ;;
-    coding:low)           echo "deepseek-coder:1.3b phi3:mini qwen2.5:0.5b"               ;;
-    creative:high)        echo "llama3.1:70b mixtral:8x7b qwen2.5:72b"                    ;;
-    creative:medium)      echo "llama3.1:8b mistral:7b qwen2.5:7b"                        ;;
-    creative:low)         echo "phi3:mini gemma2:2b qwen2.5:0.5b"                         ;;
-    data_science:high)    echo "llama3.1:70b deepseek-coder-v2:16b qwen2.5:72b"           ;;
-    data_science:medium)  echo "llama3.1:8b codellama:13b qwen2.5:7b"                     ;;
-    data_science:low)     echo "phi3:mini deepseek-coder:1.3b qwen2.5:0.5b"               ;;
-    *:high)               echo "llama3.1:70b mixtral:8x7b qwen2.5:72b llama3.2:90b"       ;;
-    *:medium)             echo "llama3.1:8b qwen2.5:7b mistral:7b llama3.2:3b"            ;;
-    *:low)                echo "phi3:mini qwen2.5:0.5b gemma2:2b tinyllama"               ;;
+    # ── Siber Güvenlik ──────────────────────────────────────────────────────────
+    cybersecurity:very_low)  echo "qwen2.5:0.5b|0.4|Nano — çok sınırlı  tinyllama:1.1b|0.6|Nano — en hafif  phi3:mini|2.3|Mini 3.8B — dengeli" ;;
+    cybersecurity:low)       echo "phi3:mini|2.3|Mini 3.8B — iyi CVE analizi  qwen2.5:1.5b|1.0|Compact — hızlı  gemma3:1b|0.8|Google nano" ;;
+    cybersecurity:medium)    echo "phi4-mini|2.5|Microsoft 3.8B — siber güv. ✓  qwen2.5:7b|4.7|Siber güv. ★★★★★  gemma3:4b|2.5|Google 4B  llama3.2:3b|2.0|Meta 3B" ;;
+    cybersecurity:high)      echo "qwen2.5:14b|9.0|Siber güv. ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning ★★★★★  gemma3:12b|8.0|Google 12B" ;;
+    cybersecurity:very_high) echo "qwen2.5:32b|20.0|Güçlü siber güv.  deepseek-r1:14b|9.0|Derin reasoning  llama3.1:70b|42.0|En yetenekli (64GB+)  qwen2.5:14b|9.0|Hız/kalite dengesi" ;;
+    # ── Finans ─────────────────────────────────────────────────────────────────
+    finance:very_low)        echo "qwen2.5:0.5b|0.4|Nano  tinyllama:1.1b|0.6|En hafif  phi3:mini|2.3|Dengeli" ;;
+    finance:low)             echo "qwen2.5:1.5b|1.0|Compact  phi3:mini|2.3|Mini 3.8B  gemma3:1b|0.8|Hızlı" ;;
+    finance:medium)          echo "qwen2.5:7b|4.7|Finans analizi ✓  phi4-mini|2.5|Microsoft 3.8B  llama3.2:3b|2.0|Meta 3B  gemma3:4b|2.5|Google 4B" ;;
+    finance:high)            echo "qwen2.5:14b|9.0|Finans ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning  gemma3:12b|8.0|Google 12B" ;;
+    finance:very_high)       echo "qwen2.5:32b|20.0|Güçlü analiz  llama3.1:70b|42.0|En yetenekli  deepseek-r1:14b|9.0|Derin reasoning  qwen2.5:14b|9.0|Hız/kalite" ;;
+    # ── Yazılım Geliştirme ─────────────────────────────────────────────────────
+    coding:very_low)         echo "deepseek-coder:1.3b|0.8|Kod odaklı nano  qwen2.5-coder:0.5b|0.4|Coder nano  phi3:mini|2.3|Genel kod" ;;
+    coding:low)              echo "deepseek-coder:1.3b|0.8|Kod nano  phi3:mini|2.3|Mini 3.8B  qwen2.5-coder:1.5b|1.0|Coder compact" ;;
+    coding:medium)           echo "qwen2.5-coder:7b|4.7|Kod ★★★★★  phi4-mini|2.5|Microsoft kod ✓  deepseek-coder:6.7b|4.0|Kod odaklı  llama3.2:3b|2.0|Meta 3B" ;;
+    coding:high)             echo "qwen2.5-coder:14b|9.0|Kod ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning+kod  gemma3:12b|8.0|Google 12B" ;;
+    coding:very_high)        echo "qwen2.5-coder:32b|20.0|En güçlü kod  deepseek-r1:14b|9.0|Kod reasoning  llama3.1:70b|42.0|Genel güç  qwen2.5:14b|9.0|Dengeli" ;;
+    # ── Genel ─────────────────────────────────────────────────────────────────
+    general:very_low)        echo "qwen2.5:0.5b|0.4|Nano  gemma3:1b|0.8|Google nano  tinyllama:1.1b|0.6|En hafif" ;;
+    general:low)             echo "qwen2.5:1.5b|1.0|Compact  gemma3:1b|0.8|Hızlı nano  phi3:mini|2.3|Mini 3.8B" ;;
+    general:medium)          echo "phi4-mini|2.5|Microsoft 3.8B ✓  qwen2.5:7b|4.7|Genel güç  gemma3:4b|2.5|Google 4B  llama3.2:3b|2.0|Meta 3B" ;;
+    general:high)            echo "qwen2.5:14b|9.0|Güçlü genel  phi4|9.0|Microsoft 14B  gemma3:12b|8.0|Google 12B  deepseek-r1:7b|4.7|Reasoning" ;;
+    general:very_high)       echo "qwen2.5:32b|20.0|Çok güçlü  llama3.1:70b|42.0|En güçlü (64GB+)  deepseek-r1:14b|9.0|Reasoning  qwen2.5:14b|9.0|Hız/kalite" ;;
+    # ── Yaratıcı Yazarlık ──────────────────────────────────────────────────────
+    creative:very_low)       echo "gemma3:1b|0.8|Hızlı nano  qwen2.5:0.5b|0.4|Nano  tinyllama:1.1b|0.6|En hafif" ;;
+    creative:low)            echo "gemma3:1b|0.8|Hızlı  qwen2.5:1.5b|1.0|Compact  phi3:mini|2.3|Mini 3.8B" ;;
+    creative:medium)         echo "llama3.2:3b|2.0|Meta 3B  phi4-mini|2.5|Microsoft ✓  qwen2.5:7b|4.7|Çok dilli  gemma3:4b|2.5|Google 4B" ;;
+    creative:high)           echo "llama3.1:8b|5.0|Meta 8B  qwen2.5:14b|9.0|Çok dilli  gemma3:12b|8.0|Google 12B  phi4|9.0|Microsoft 14B" ;;
+    creative:very_high)      echo "llama3.1:70b|42.0|En yaratıcı  qwen2.5:32b|20.0|Çok dilli  deepseek-r1:14b|9.0|Reasoning  qwen2.5:14b|9.0|Hız/kalite" ;;
+    # ── Veri Bilimi ────────────────────────────────────────────────────────────
+    data_science:very_low)   echo "deepseek-coder:1.3b|0.8|Veri/kod nano  qwen2.5:0.5b|0.4|Nano  phi3:mini|2.3|Mini 3.8B" ;;
+    data_science:low)        echo "deepseek-coder:1.3b|0.8|Kod nano  phi3:mini|2.3|Mini 3.8B  qwen2.5:1.5b|1.0|Compact" ;;
+    data_science:medium)     echo "qwen2.5:7b|4.7|DS analizi ✓  phi4-mini|2.5|Microsoft ✓  deepseek-coder:6.7b|4.0|Kod+veri  gemma3:4b|2.5|Google 4B" ;;
+    data_science:high)       echo "qwen2.5:14b|9.0|DS ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning  gemma3:12b|8.0|Google 12B" ;;
+    data_science:very_high)  echo "qwen2.5:32b|20.0|Güçlü DS  deepseek-r1:14b|9.0|Derin reasoning  llama3.1:70b|42.0|En yetenekli  qwen2.5:14b|9.0|Dengeli" ;;
+    # ── Fallback ───────────────────────────────────────────────────────────────
+    *:very_low)  echo "qwen2.5:0.5b|0.4|Nano  gemma3:1b|0.8|Google nano  tinyllama:1.1b|0.6|En hafif" ;;
+    *:low)       echo "qwen2.5:1.5b|1.0|Compact  phi3:mini|2.3|Mini 3.8B  gemma3:1b|0.8|Hızlı" ;;
+    *:medium)    echo "phi4-mini|2.5|Microsoft 3.8B  qwen2.5:7b|4.7|Genel güç  gemma3:4b|2.5|Google 4B  llama3.2:3b|2.0|Meta 3B" ;;
+    *:high)      echo "qwen2.5:14b|9.0|Güçlü  phi4|9.0|Microsoft 14B  gemma3:12b|8.0|Google 12B  deepseek-r1:7b|4.7|Reasoning" ;;
+    *:very_high) echo "qwen2.5:32b|20.0|Çok güçlü  llama3.1:70b|42.0|En güçlü  deepseek-r1:14b|9.0|Reasoning  qwen2.5:14b|9.0|Dengeli" ;;
   esac
 }
 
-# ── Model Selection ────────────────────────────────────────────────────────────
+# ── Model Selection (multi-select) ────────────────────────────────────────────
 select_model() {
   echo ""
   echo -e "  ${W}── Model Seçimi ──────────────────────────────${NC}"
+  echo -e "  ${DIM}  Birden fazla model indirebilirsiniz. İlk seçilen varsayılan olur.${NC}"
 
   local raw_list; raw_list=$(get_model_list "$CATEGORY" "$HW_TIER")
-  local -a ALL_MODELS=()
-  local -a RECOMMENDED=()    # language-compatible
-  local -a NOT_RECOMMENDED=()# language issues
+  local -a DISPLAY_LIST=()   # parallel: model names
+  local -a DISPLAY_RAM=()    # parallel: RAM strings
+  local -a DISPLAY_DESC=()   # parallel: descriptions
+  local -a DISPLAY_LANG=()   # parallel: lang badge
 
-  for m in $raw_list; do
-    ALL_MODELS+=("$m")
-    if lang_score "$m" "$LANGUAGE"; then
-      RECOMMENDED+=("$m")
-    else
-      NOT_RECOMMENDED+=("$m")
-    fi
+  # Parse "name|ram|desc" entries
+  local -a PARSED_NAMES=() PARSED_RAMS=() PARSED_DESCS=()
+  for entry in $raw_list; do
+    local name ram desc
+    name="${entry%%|*}"; rest="${entry#*|}"; ram="${rest%%|*}"; desc="${rest#*|}"
+    PARSED_NAMES+=("$name"); PARSED_RAMS+=("$ram"); PARSED_DESCS+=("$desc")
   done
-
-  # If no lang-recommended, fall back to all
-  [[ ${#RECOMMENDED[@]} -eq 0 ]] && RECOMMENDED=("${ALL_MODELS[@]}")
 
   # ── Show already installed models first ────────────────────────────────────
-  local -a ALREADY_INST_SHOW=()
   if [[ ${#INSTALLED_MODELS[@]} -gt 0 ]]; then
-    echo -e "\n  ${G}Sunucuda zaten yüklü modeller:${NC}"
+    echo -e "\n  ${G}Zaten yüklü modeller:${NC}"
     for m in "${INSTALLED_MODELS[@]}"; do
-      local lang_ok=""
-      lang_score "$m" "$LANGUAGE" && lang_ok=" ${G}[${LANGUAGE} ✓]${NC}" || lang_ok=" ${Y}[${LANGUAGE} ±]${NC}"
-      echo -e "    ${G}✔${NC} $m$lang_ok"
-      ALREADY_INST_SHOW+=("$m")
+      local lang_ok; lang_score "$m" "$LANGUAGE" && lang_ok="${G}✓${NC}" || lang_ok="${Y}±${NC}"
+      echo -e "    ${G}●${NC} $m  ${DIM}[lang:${NC}$lang_ok${DIM}]${NC}"
     done
   fi
 
-  # ── Show recommended models ────────────────────────────────────────────────
+  # ── Build display list: recommended first ─────────────────────────────────
   echo ""
-  echo -e "  ${W}Önerilen modeller${NC} ${DIM}(donanım: $HW_TIER | dil: $LANGUAGE):${NC}"
+  echo -e "  ${W}Önerilen modeller${NC} ${DIM}(donanım: ${HW_TIER} | ~RAM gereksinimi):${NC}"
   echo ""
 
-  local -a DISPLAY_LIST=()
   local idx=1
-
-  # First: recommended (lang-compatible) not yet installed
-  for m in "${RECOMMENDED[@]}"; do
-    local already=""
-    for im in "${INSTALLED_MODELS[@]}"; do
-      [[ "$im" == "$m"* || "$m" == "$im"* ]] && already="installed" && break
-    done
-    if [[ "$already" == "installed" ]]; then
-      echo -e "  ${C}[$idx]${NC} $m  ${G}← zaten yüklü${NC}"
-    else
-      echo -e "  ${C}[$idx]${NC} $m  ${G}[${LANGUAGE} ✓]${NC}"
-    fi
-    DISPLAY_LIST+=("$m")
-    ((idx++))
-  done
-
-  # Then: not-recommended with warning (only if few options)
-  if [[ ${#RECOMMENDED[@]} -lt 2 && ${#NOT_RECOMMENDED[@]} -gt 0 ]]; then
-    for m in "${NOT_RECOMMENDED[@]}"; do
-      echo -e "  ${C}[$idx]${NC} $m  ${Y}[${LANGUAGE} ±]${NC}"
-      DISPLAY_LIST+=("$m")
+  # Recommended (lang-compatible) first
+  for i in "${!PARSED_NAMES[@]}"; do
+    local m="${PARSED_NAMES[$i]}" r="${PARSED_RAMS[$i]}" d="${PARSED_DESCS[$i]}"
+    if lang_score "$m" "$LANGUAGE"; then
+      local inst_tag=""
+      for im in "${INSTALLED_MODELS[@]}"; do
+        [[ "$im" == "$m"* || "$m" == "$im"* ]] && inst_tag=" ${G}← yüklü${NC}" && break
+      done
+      printf "  ${C}[%2d]${NC} %-26s ${DIM}~%5s GB${NC}  %s%s\n" "$idx" "$m" "$r" "$d" "$inst_tag"
+      DISPLAY_LIST+=("$m"); DISPLAY_RAM+=("$r"); DISPLAY_DESC+=("$d"); DISPLAY_LANG+=("ok")
       ((idx++))
-    done
-  fi
-
-  # Already installed not in list
+    fi
+  done
+  # Not-recommended (lang warning) after
+  for i in "${!PARSED_NAMES[@]}"; do
+    local m="${PARSED_NAMES[$i]}" r="${PARSED_RAMS[$i]}" d="${PARSED_DESCS[$i]}"
+    if ! lang_score "$m" "$LANGUAGE"; then
+      local inst_tag=""
+      for im in "${INSTALLED_MODELS[@]}"; do
+        [[ "$im" == "$m"* || "$m" == "$im"* ]] && inst_tag=" ${G}← yüklü${NC}" && break
+      done
+      printf "  ${C}[%2d]${NC} %-26s ${DIM}~%5s GB${NC}  %s ${Y}[dil:±]${NC}%s\n" "$idx" "$m" "$r" "$d" "$inst_tag"
+      DISPLAY_LIST+=("$m"); DISPLAY_RAM+=("$r"); DISPLAY_DESC+=("$d"); DISPLAY_LANG+=("warn")
+      ((idx++))
+    fi
+  done
+  # Already installed but not in list
   for im in "${INSTALLED_MODELS[@]}"; do
     local found=false
-    for dm in "${DISPLAY_LIST[@]}"; do
-      [[ "$dm" == "$im" ]] && found=true && break
-    done
+    for dm in "${DISPLAY_LIST[@]}"; do [[ "$dm" == "$im" ]] && found=true && break; done
     if ! $found; then
-      echo -e "  ${C}[$idx]${NC} $im  ${G}← yüklü${NC}"
-      DISPLAY_LIST+=("$im")
+      local lang_ok; lang_score "$im" "$LANGUAGE" && lang_ok="" || lang_ok=" ${Y}[dil:±]${NC}"
+      printf "  ${C}[%2d]${NC} %-26s ${DIM}  yüklü${NC}$lang_ok\n" "$idx" "$im"
+      DISPLAY_LIST+=("$im"); DISPLAY_RAM+=("?"); DISPLAY_DESC+=("yüklü"); DISPLAY_LANG+=("ok")
       ((idx++))
     fi
   done
 
-  echo -e "  ${C}[0]${NC} Manuel gir"
+  echo -e "  ${C}[ 0]${NC} Manuel gir"
   echo ""
-  prompt "Seçim [1-$((idx-1)) | 0=manuel | Enter=1]:"
+  echo -e "  ${DIM}  Birden fazla: boşlukla ayır  →  1 3   |  Tek: sadece numara  →  2${NC}"
+  prompt "Seçim [Enter=1. öneri]:"
   read -r choice
 
-  local chosen="${choice:-1}"
-  if [[ "$chosen" == "0" ]]; then
-    prompt "Model adını girin (örn: llama3.1:8b):"
+  SELECTED_MODEL=""
+  EXTRA_MODELS=()
+
+  if [[ -z "$choice" ]]; then
+    SELECTED_MODEL="${DISPLAY_LIST[0]}"
+  elif [[ "$choice" == "0" ]]; then
+    prompt "Model adını girin (örn: qwen2.5:7b):"
     read -r SELECTED_MODEL
     [[ -z "$SELECTED_MODEL" ]] && SELECTED_MODEL="${DISPLAY_LIST[0]}"
-  elif [[ "$chosen" =~ ^[0-9]+$ ]] && (( chosen >= 1 && chosen < idx )); then
-    SELECTED_MODEL="${DISPLAY_LIST[$((chosen-1))]}"
   else
-    warn "Geçersiz seçim, ilk öneri seçildi"
-    SELECTED_MODEL="${DISPLAY_LIST[0]}"
+    local -a picked=()
+    read -ra nums <<< "$choice"
+    for n in "${nums[@]}"; do
+      if [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n < idx )); then
+        picked+=("${DISPLAY_LIST[$((n-1))]}")
+      else
+        warn "Geçersiz numara '$n', atlandı"
+      fi
+    done
+    if [[ ${#picked[@]} -eq 0 ]]; then
+      warn "Geçerli seçim yok, ilk öneri seçildi"
+      SELECTED_MODEL="${DISPLAY_LIST[0]}"
+    else
+      SELECTED_MODEL="${picked[0]}"
+      EXTRA_MODELS=("${picked[@]:1}")
+    fi
   fi
 
-  # Language warning
+  # Language warning for default model
   if ! lang_score "$SELECTED_MODEL" "$LANGUAGE"; then
     echo ""
     warn "${Y}$SELECTED_MODEL${NC} modeli ${W}$LANGUAGE${NC} dili için ${Y}sınırlı${NC} destek sunuyor."
-    warn "Daha iyi Türkçe için ${G}qwen2.5:7b${NC} veya ${G}llama3.1:8b${NC} öneririz."
     prompt "Yine de devam et? [E/h]:"
     read -r confirm
     [[ "${confirm,,}" == "h" ]] && select_model && return
   fi
 
-  info "Seçilen model: ${W}$SELECTED_MODEL${NC}"
+  echo ""
+  info "Varsayılan model: ${W}$SELECTED_MODEL${NC}"
+  if [[ ${#EXTRA_MODELS[@]} -gt 0 ]]; then
+    info "Ayrıca indirilecek: ${W}${EXTRA_MODELS[*]}${NC}"
+  fi
 }
 
-# ── Download Model ─────────────────────────────────────────────────────────────
-pull_selected_model() {
-  # Check if already installed
+# ── Download Models ────────────────────────────────────────────────────────────
+_pull_one_model() {
+  local model="$1"
   local already=false
   for im in "${INSTALLED_MODELS[@]}"; do
-    [[ "$im" == "$SELECTED_MODEL"* || "$SELECTED_MODEL" == "$im"* ]] && already=true && break
+    [[ "$im" == "$model"* || "$model" == "$im"* ]] && already=true && break
   done
-
   if $already; then
-    info "Model zaten yüklü, indirme atlanıyor: ${W}$SELECTED_MODEL${NC}"
+    info "Zaten yüklü, atlandı: ${W}$model${NC}"
     return 0
   fi
-
   echo ""
-  echo -e "  ${Y}▼ Model indiriliyor: ${W}$SELECTED_MODEL${NC}"
-  echo -e "  ${DIM}  İnternet bağlantısı gerekli. Boyuta göre birkaç dakika sürebilir.${NC}"
+  echo -e "  ${Y}▼ İndiriliyor: ${W}$model${NC}  ${DIM}(internet gerekli, boyuta göre dakikalar sürebilir)${NC}"
   echo ""
-  ollama pull "$SELECTED_MODEL"
-  info "Model indirildi: ${W}$SELECTED_MODEL${NC}"
+  ollama pull "$model"
+  info "İndirildi: ${W}$model${NC}"
 }
+
+pull_selected_models() {
+  _pull_one_model "$SELECTED_MODEL"
+  for m in "${EXTRA_MODELS[@]:-}"; do
+    [[ -n "$m" ]] && _pull_one_model "$m"
+  done
+}
+# backward-compat alias used in reconfigure path
+pull_selected_model() { pull_selected_models; }
 
 # ── Save Config ────────────────────────────────────────────────────────────────
 save_config() {
+  local extra_str="${EXTRA_MODELS[*]:-}"
   cat > "$CONFIG_FILE" <<EOF
 # NordGpT Configuration — $(date -u +%Y-%m-%dT%H:%M:%SZ)
 LANGUAGE=$LANGUAGE
 CATEGORY=$CATEGORY
 DEFAULT_MODEL=$SELECTED_MODEL
+EXTRA_MODELS=$extra_str
 HW_TIER=$HW_TIER
 CONFIGURED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
@@ -687,7 +741,7 @@ run_wizard() {
   select_language
   select_category
   select_model
-  pull_selected_model
+  pull_selected_models
   setup_admin_account
   setup_microsoft_sso
   setup_captcha
