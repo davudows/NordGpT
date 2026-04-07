@@ -285,53 +285,265 @@ lang_score() {
 }
 
 # ── Model Lists (per category × tier) ─────────────────────────────────────────
-# Format: "model:tag|RAM_GB|description"
-# Tiers: very_low(<4GB)  low(4-8GB)  medium(8-16GB)  high(16-32GB)  very_high(32+GB)
+# Format: one entry per line → "model:tag|RAM_GB|kısa-açıklama"
+# Açıklamalarda BOŞLUK KULLANMA — parsing bozulur (for-loop word-split yapar)
+# Tiers: very_low(<4GB)  low(4-8GB)  medium(8-16GB)  high(16-32GB)  very_high(48+GB)
 get_model_list() {
   local cat="$1" tier="$2"
   case "${cat}:${tier}" in
+
     # ── Siber Güvenlik ──────────────────────────────────────────────────────────
-    cybersecurity:very_low)  echo "qwen2.5:0.5b|0.4|Nano — çok sınırlı  tinyllama:1.1b|0.6|Nano — en hafif  phi3:mini|2.3|Mini 3.8B — dengeli" ;;
-    cybersecurity:low)       echo "phi3:mini|2.3|Mini 3.8B — iyi CVE analizi  qwen2.5:1.5b|1.0|Compact — hızlı  gemma3:1b|0.8|Google nano" ;;
-    cybersecurity:medium)    echo "phi4-mini|2.5|Microsoft 3.8B — siber güv. ✓  qwen2.5:7b|4.7|Siber güv. ★★★★★  gemma3:4b|2.5|Google 4B  llama3.2:3b|2.0|Meta 3B" ;;
-    cybersecurity:high)      echo "qwen2.5:14b|9.0|Siber güv. ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning ★★★★★  gemma3:12b|8.0|Google 12B" ;;
-    cybersecurity:very_high) echo "qwen2.5:32b|20.0|Güçlü siber güv.  deepseek-r1:14b|9.0|Derin reasoning  llama3.1:70b|42.0|En yetenekli (64GB+)  qwen2.5:14b|9.0|Hız/kalite dengesi" ;;
+    cybersecurity:very_low) printf '%s\n' \
+      "qwen2.5:0.5b|0.4|Nano-CPU-dostu" \
+      "tinyllama:1.1b|0.6|En-hafif-model" \
+      "phi3:mini|2.3|Mini-3.8B-dengeli" ;;
+    cybersecurity:low) printf '%s\n' \
+      "phi3:mini|2.3|Mini-3.8B-CVE-analizi" \
+      "qwen2.5:1.5b|1.0|Compact-hızlı" \
+      "qwen2.5:3b|2.0|Orta-compact" \
+      "gemma3:1b|0.8|Google-nano" \
+      "deepseek-r1:1.5b|1.1|Reasoning-nano" ;;
+    cybersecurity:medium) printf '%s\n' \
+      "phi4-mini|2.5|Microsoft-3.8B-siber-güv✓" \
+      "qwen2.5:7b|4.7|Siber-güv-★★★★★" \
+      "llama3.1:8b|5.0|Meta-8B-güvenlik" \
+      "mistral:7b|4.1|Mistral-7B-dengeli" \
+      "gemma3:4b|2.5|Google-4B" \
+      "llama3.2:3b|2.0|Meta-3B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning-7B" ;;
+    cybersecurity:high) printf '%s\n' \
+      "qwen2.5:14b|9.0|Siber-güv-★★★★★" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning-★★★★★" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:12b|8.0|Google-12B" \
+      "qwen2.5:7b|4.7|Siber-güv-compact" \
+      "mistral:7b|4.1|Mistral-7B" ;;
+    cybersecurity:very_high) printf '%s\n' \
+      "qwen2.5:32b|20.0|Güçlü-siber-güv" \
+      "deepseek-r1:14b|9.0|Derin-reasoning" \
+      "llama3.1:70b|42.0|En-yetenekli-64GB+" \
+      "qwen2.5:14b|9.0|Hız-kalite-dengesi" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-cevap-3.8B" \
+      "gemma3:27b|18.0|Google-27B" \
+      "deepseek-r1:7b|4.7|Reasoning-hızlı" ;;
+
     # ── Finans ─────────────────────────────────────────────────────────────────
-    finance:very_low)        echo "qwen2.5:0.5b|0.4|Nano  tinyllama:1.1b|0.6|En hafif  phi3:mini|2.3|Dengeli" ;;
-    finance:low)             echo "qwen2.5:1.5b|1.0|Compact  phi3:mini|2.3|Mini 3.8B  gemma3:1b|0.8|Hızlı" ;;
-    finance:medium)          echo "qwen2.5:7b|4.7|Finans analizi ✓  phi4-mini|2.5|Microsoft 3.8B  llama3.2:3b|2.0|Meta 3B  gemma3:4b|2.5|Google 4B" ;;
-    finance:high)            echo "qwen2.5:14b|9.0|Finans ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning  gemma3:12b|8.0|Google 12B" ;;
-    finance:very_high)       echo "qwen2.5:32b|20.0|Güçlü analiz  llama3.1:70b|42.0|En yetenekli  deepseek-r1:14b|9.0|Derin reasoning  qwen2.5:14b|9.0|Hız/kalite" ;;
+    finance:very_low) printf '%s\n' \
+      "qwen2.5:0.5b|0.4|Nano" \
+      "tinyllama:1.1b|0.6|En-hafif" \
+      "phi3:mini|2.3|Mini-3.8B" ;;
+    finance:low) printf '%s\n' \
+      "qwen2.5:1.5b|1.0|Compact" \
+      "phi3:mini|2.3|Mini-3.8B" \
+      "qwen2.5:3b|2.0|Orta-compact" \
+      "gemma3:1b|0.8|Hızlı-nano" ;;
+    finance:medium) printf '%s\n' \
+      "qwen2.5:7b|4.7|Finans-analizi✓" \
+      "phi4-mini|2.5|Microsoft-3.8B" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "mistral:7b|4.1|Mistral-7B" \
+      "llama3.2:3b|2.0|Meta-3B-hızlı" \
+      "gemma3:4b|2.5|Google-4B" ;;
+    finance:high) printf '%s\n' \
+      "qwen2.5:14b|9.0|Finans-★★★★★" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:12b|8.0|Google-12B" \
+      "qwen2.5:7b|4.7|Compact-finans" ;;
+    finance:very_high) printf '%s\n' \
+      "qwen2.5:32b|20.0|Güçlü-analiz" \
+      "llama3.1:70b|42.0|En-yetenekli" \
+      "deepseek-r1:14b|9.0|Derin-reasoning" \
+      "qwen2.5:14b|9.0|Hız-kalite" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-3.8B" \
+      "gemma3:27b|18.0|Google-27B" ;;
+
     # ── Yazılım Geliştirme ─────────────────────────────────────────────────────
-    coding:very_low)         echo "deepseek-coder:1.3b|0.8|Kod odaklı nano  qwen2.5-coder:0.5b|0.4|Coder nano  phi3:mini|2.3|Genel kod" ;;
-    coding:low)              echo "deepseek-coder:1.3b|0.8|Kod nano  phi3:mini|2.3|Mini 3.8B  qwen2.5-coder:1.5b|1.0|Coder compact" ;;
-    coding:medium)           echo "qwen2.5-coder:7b|4.7|Kod ★★★★★  phi4-mini|2.5|Microsoft kod ✓  deepseek-coder:6.7b|4.0|Kod odaklı  llama3.2:3b|2.0|Meta 3B" ;;
-    coding:high)             echo "qwen2.5-coder:14b|9.0|Kod ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning+kod  gemma3:12b|8.0|Google 12B" ;;
-    coding:very_high)        echo "qwen2.5-coder:32b|20.0|En güçlü kod  deepseek-r1:14b|9.0|Kod reasoning  llama3.1:70b|42.0|Genel güç  qwen2.5:14b|9.0|Dengeli" ;;
-    # ── Genel ─────────────────────────────────────────────────────────────────
-    general:very_low)        echo "qwen2.5:0.5b|0.4|Nano  gemma3:1b|0.8|Google nano  tinyllama:1.1b|0.6|En hafif" ;;
-    general:low)             echo "qwen2.5:1.5b|1.0|Compact  gemma3:1b|0.8|Hızlı nano  phi3:mini|2.3|Mini 3.8B" ;;
-    general:medium)          echo "phi4-mini|2.5|Microsoft 3.8B ✓  qwen2.5:7b|4.7|Genel güç  gemma3:4b|2.5|Google 4B  llama3.2:3b|2.0|Meta 3B" ;;
-    general:high)            echo "qwen2.5:14b|9.0|Güçlü genel  phi4|9.0|Microsoft 14B  gemma3:12b|8.0|Google 12B  deepseek-r1:7b|4.7|Reasoning" ;;
-    general:very_high)       echo "qwen2.5:32b|20.0|Çok güçlü  llama3.1:70b|42.0|En güçlü (64GB+)  deepseek-r1:14b|9.0|Reasoning  qwen2.5:14b|9.0|Hız/kalite" ;;
+    coding:very_low) printf '%s\n' \
+      "deepseek-coder:1.3b|0.8|Kod-nano" \
+      "qwen2.5-coder:0.5b|0.4|Coder-nano" \
+      "phi3:mini|2.3|Genel-kod" ;;
+    coding:low) printf '%s\n' \
+      "deepseek-coder:1.3b|0.8|Kod-nano" \
+      "qwen2.5-coder:1.5b|1.0|Coder-compact" \
+      "phi3:mini|2.3|Mini-3.8B" \
+      "qwen2.5:3b|2.0|Genel-compact" \
+      "deepseek-r1:1.5b|1.1|Reasoning-nano" ;;
+    coding:medium) printf '%s\n' \
+      "qwen2.5-coder:7b|4.7|Kod-★★★★★" \
+      "phi4-mini|2.5|Microsoft-kod✓" \
+      "deepseek-coder:6.7b|4.0|Kod-odaklı" \
+      "deepseek-r1:7b|4.7|Reasoning+kod" \
+      "llama3.1:8b|5.0|Meta-8B-kod" \
+      "mistral:7b|4.1|Mistral-7B" \
+      "llama3.2:3b|2.0|Meta-3B-hızlı" ;;
+    coding:high) printf '%s\n' \
+      "qwen2.5-coder:14b|9.0|Kod-★★★★★" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning+kod" \
+      "deepseek-r1:14b|9.0|Derin-reasoning" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:12b|8.0|Google-12B" \
+      "qwen2.5-coder:7b|4.7|Compact-coder" ;;
+    coding:very_high) printf '%s\n' \
+      "qwen2.5-coder:32b|20.0|En-güçlü-kod" \
+      "deepseek-r1:14b|9.0|Kod-reasoning" \
+      "llama3.1:70b|42.0|Genel-güç" \
+      "qwen2.5-coder:14b|9.0|Kod-14B" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-cevap" \
+      "gemma3:27b|18.0|Google-27B" \
+      "deepseek-r1:7b|4.7|Reasoning-hızlı" ;;
+
+    # ── Genel ──────────────────────────────────────────────────────────────────
+    general:very_low) printf '%s\n' \
+      "qwen2.5:0.5b|0.4|Nano" \
+      "gemma3:1b|0.8|Google-nano" \
+      "tinyllama:1.1b|0.6|En-hafif" ;;
+    general:low) printf '%s\n' \
+      "qwen2.5:1.5b|1.0|Compact" \
+      "gemma3:1b|0.8|Hızlı-nano" \
+      "phi3:mini|2.3|Mini-3.8B" \
+      "qwen2.5:3b|2.0|Orta-compact" \
+      "deepseek-r1:1.5b|1.1|Reasoning-nano" ;;
+    general:medium) printf '%s\n' \
+      "phi4-mini|2.5|Microsoft-3.8B✓" \
+      "qwen2.5:7b|4.7|Genel-güç" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "mistral:7b|4.1|Mistral-7B" \
+      "gemma3:4b|2.5|Google-4B" \
+      "llama3.2:3b|2.0|Meta-3B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning-7B" ;;
+    general:high) printf '%s\n' \
+      "qwen2.5:14b|9.0|Güçlü-genel" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:12b|8.0|Google-12B" \
+      "qwen2.5:7b|4.7|Compact-genel" \
+      "mistral:7b|4.1|Mistral-7B" ;;
+    general:very_high) printf '%s\n' \
+      "qwen2.5:32b|20.0|Çok-güçlü" \
+      "llama3.1:70b|42.0|En-güçlü-64GB+" \
+      "deepseek-r1:14b|9.0|Derin-reasoning" \
+      "qwen2.5:14b|9.0|Hız-kalite" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-3.8B" \
+      "gemma3:27b|18.0|Google-27B" \
+      "deepseek-r1:7b|4.7|Reasoning-hızlı" ;;
+
     # ── Yaratıcı Yazarlık ──────────────────────────────────────────────────────
-    creative:very_low)       echo "gemma3:1b|0.8|Hızlı nano  qwen2.5:0.5b|0.4|Nano  tinyllama:1.1b|0.6|En hafif" ;;
-    creative:low)            echo "gemma3:1b|0.8|Hızlı  qwen2.5:1.5b|1.0|Compact  phi3:mini|2.3|Mini 3.8B" ;;
-    creative:medium)         echo "llama3.2:3b|2.0|Meta 3B  phi4-mini|2.5|Microsoft ✓  qwen2.5:7b|4.7|Çok dilli  gemma3:4b|2.5|Google 4B" ;;
-    creative:high)           echo "llama3.1:8b|5.0|Meta 8B  qwen2.5:14b|9.0|Çok dilli  gemma3:12b|8.0|Google 12B  phi4|9.0|Microsoft 14B" ;;
-    creative:very_high)      echo "llama3.1:70b|42.0|En yaratıcı  qwen2.5:32b|20.0|Çok dilli  deepseek-r1:14b|9.0|Reasoning  qwen2.5:14b|9.0|Hız/kalite" ;;
+    creative:very_low) printf '%s\n' \
+      "gemma3:1b|0.8|Hızlı-nano" \
+      "qwen2.5:0.5b|0.4|Nano" \
+      "tinyllama:1.1b|0.6|En-hafif" ;;
+    creative:low) printf '%s\n' \
+      "gemma3:1b|0.8|Hızlı" \
+      "qwen2.5:1.5b|1.0|Compact" \
+      "phi3:mini|2.3|Mini-3.8B" \
+      "qwen2.5:3b|2.0|Orta-compact" ;;
+    creative:medium) printf '%s\n' \
+      "llama3.2:3b|2.0|Meta-3B" \
+      "phi4-mini|2.5|Microsoft-3.8B✓" \
+      "qwen2.5:7b|4.7|Çok-dilli" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "mistral:7b|4.1|Mistral-7B" \
+      "gemma3:4b|2.5|Google-4B" ;;
+    creative:high) printf '%s\n' \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "qwen2.5:14b|9.0|Çok-dilli" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "gemma3:12b|8.0|Google-12B" \
+      "mistral:7b|4.1|Mistral-7B" \
+      "deepseek-r1:7b|4.7|Reasoning" ;;
+    creative:very_high) printf '%s\n' \
+      "llama3.1:70b|42.0|En-yaratıcı" \
+      "qwen2.5:32b|20.0|Çok-dilli" \
+      "deepseek-r1:14b|9.0|Reasoning" \
+      "qwen2.5:14b|9.0|Hız-kalite" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-3.8B" \
+      "gemma3:27b|18.0|Google-27B" \
+      "llama3.1:8b|5.0|Meta-8B" ;;
+
     # ── Veri Bilimi ────────────────────────────────────────────────────────────
-    data_science:very_low)   echo "deepseek-coder:1.3b|0.8|Veri/kod nano  qwen2.5:0.5b|0.4|Nano  phi3:mini|2.3|Mini 3.8B" ;;
-    data_science:low)        echo "deepseek-coder:1.3b|0.8|Kod nano  phi3:mini|2.3|Mini 3.8B  qwen2.5:1.5b|1.0|Compact" ;;
-    data_science:medium)     echo "qwen2.5:7b|4.7|DS analizi ✓  phi4-mini|2.5|Microsoft ✓  deepseek-coder:6.7b|4.0|Kod+veri  gemma3:4b|2.5|Google 4B" ;;
-    data_science:high)       echo "qwen2.5:14b|9.0|DS ★★★★★  phi4|9.0|Microsoft 14B  deepseek-r1:7b|4.7|Reasoning  gemma3:12b|8.0|Google 12B" ;;
-    data_science:very_high)  echo "qwen2.5:32b|20.0|Güçlü DS  deepseek-r1:14b|9.0|Derin reasoning  llama3.1:70b|42.0|En yetenekli  qwen2.5:14b|9.0|Dengeli" ;;
+    data_science:very_low) printf '%s\n' \
+      "deepseek-coder:1.3b|0.8|Veri-kod-nano" \
+      "qwen2.5:0.5b|0.4|Nano" \
+      "phi3:mini|2.3|Mini-3.8B" ;;
+    data_science:low) printf '%s\n' \
+      "deepseek-coder:1.3b|0.8|Kod-nano" \
+      "phi3:mini|2.3|Mini-3.8B" \
+      "qwen2.5:1.5b|1.0|Compact" \
+      "qwen2.5:3b|2.0|Orta-compact" \
+      "deepseek-r1:1.5b|1.1|Reasoning-nano" ;;
+    data_science:medium) printf '%s\n' \
+      "qwen2.5:7b|4.7|DS-analizi✓" \
+      "phi4-mini|2.5|Microsoft-3.8B✓" \
+      "deepseek-coder:6.7b|4.0|Kod+veri" \
+      "deepseek-r1:7b|4.7|Reasoning-7B" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:4b|2.5|Google-4B" \
+      "mistral:7b|4.1|Mistral-7B" ;;
+    data_science:high) printf '%s\n' \
+      "qwen2.5:14b|9.0|DS-★★★★★" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "deepseek-r1:7b|4.7|Reasoning" \
+      "deepseek-r1:14b|9.0|Derin-reasoning" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:12b|8.0|Google-12B" \
+      "qwen2.5:7b|4.7|Compact-DS" ;;
+    data_science:very_high) printf '%s\n' \
+      "qwen2.5:32b|20.0|Güçlü-DS" \
+      "deepseek-r1:14b|9.0|Derin-reasoning" \
+      "llama3.1:70b|42.0|En-yetenekli" \
+      "qwen2.5:14b|9.0|Hız-kalite" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-3.8B" \
+      "gemma3:27b|18.0|Google-27B" \
+      "deepseek-r1:7b|4.7|Reasoning-hızlı" ;;
+
     # ── Fallback ───────────────────────────────────────────────────────────────
-    *:very_low)  echo "qwen2.5:0.5b|0.4|Nano  gemma3:1b|0.8|Google nano  tinyllama:1.1b|0.6|En hafif" ;;
-    *:low)       echo "qwen2.5:1.5b|1.0|Compact  phi3:mini|2.3|Mini 3.8B  gemma3:1b|0.8|Hızlı" ;;
-    *:medium)    echo "phi4-mini|2.5|Microsoft 3.8B  qwen2.5:7b|4.7|Genel güç  gemma3:4b|2.5|Google 4B  llama3.2:3b|2.0|Meta 3B" ;;
-    *:high)      echo "qwen2.5:14b|9.0|Güçlü  phi4|9.0|Microsoft 14B  gemma3:12b|8.0|Google 12B  deepseek-r1:7b|4.7|Reasoning" ;;
-    *:very_high) echo "qwen2.5:32b|20.0|Çok güçlü  llama3.1:70b|42.0|En güçlü  deepseek-r1:14b|9.0|Reasoning  qwen2.5:14b|9.0|Dengeli" ;;
+    *:very_low) printf '%s\n' \
+      "qwen2.5:0.5b|0.4|Nano" \
+      "gemma3:1b|0.8|Google-nano" \
+      "tinyllama:1.1b|0.6|En-hafif" ;;
+    *:low) printf '%s\n' \
+      "qwen2.5:1.5b|1.0|Compact" \
+      "phi3:mini|2.3|Mini-3.8B" \
+      "qwen2.5:3b|2.0|Orta-compact" \
+      "gemma3:1b|0.8|Hızlı" ;;
+    *:medium) printf '%s\n' \
+      "phi4-mini|2.5|Microsoft-3.8B" \
+      "qwen2.5:7b|4.7|Genel-güç" \
+      "llama3.1:8b|5.0|Meta-8B" \
+      "gemma3:4b|2.5|Google-4B" \
+      "llama3.2:3b|2.0|Meta-3B-hızlı" ;;
+    *:high) printf '%s\n' \
+      "qwen2.5:14b|9.0|Güçlü" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Microsoft-3.8B-hızlı" \
+      "gemma3:12b|8.0|Google-12B" \
+      "deepseek-r1:7b|4.7|Reasoning" \
+      "llama3.1:8b|5.0|Meta-8B" ;;
+    *:very_high) printf '%s\n' \
+      "qwen2.5:32b|20.0|Çok-güçlü" \
+      "llama3.1:70b|42.0|En-güçlü" \
+      "deepseek-r1:14b|9.0|Reasoning" \
+      "qwen2.5:14b|9.0|Dengeli" \
+      "phi4|9.0|Microsoft-14B" \
+      "phi4-mini|2.5|Hızlı-3.8B" \
+      "gemma3:27b|18.0|Google-27B" ;;
   esac
 }
 
@@ -347,13 +559,14 @@ select_model() {
   local -a DISPLAY_DESC=()   # parallel: descriptions
   local -a DISPLAY_LANG=()   # parallel: lang badge
 
-  # Parse "name|ram|desc" entries
+  # Parse "name|ram|desc" entries — her satır bir model (boşluk split'ini önler)
   local -a PARSED_NAMES=() PARSED_RAMS=() PARSED_DESCS=()
-  for entry in $raw_list; do
-    local name ram desc
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    local name rest ram desc
     name="${entry%%|*}"; rest="${entry#*|}"; ram="${rest%%|*}"; desc="${rest#*|}"
     PARSED_NAMES+=("$name"); PARSED_RAMS+=("$ram"); PARSED_DESCS+=("$desc")
-  done
+  done <<< "$raw_list"
 
   # ── Show already installed models first ────────────────────────────────────
   if [[ ${#INSTALLED_MODELS[@]} -gt 0 ]]; then
