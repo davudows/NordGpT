@@ -120,6 +120,8 @@ check_existing() {
   PREV_TIER="low"
   SELECTED_MODEL=""
   EXTRA_MODELS=()
+  LOGIN_METHOD="1"
+  MS_ONLY="false"
 
   command -v ollama &>/dev/null && OLLAMA_INSTALLED=true
 
@@ -406,9 +408,16 @@ select_model() {
     fi
   done
 
+  # Toplam RAM tahmini (tüm modeller)
+  local total_ram=0
+  for r in "${DISPLAY_RAM[@]}"; do
+    total_ram=$(awk "BEGIN{printf \"%.0f\", $total_ram + $r}" 2>/dev/null || echo "$total_ram")
+  done
+
+  echo -e "  ${C}[ A]${NC} ${W}Hepsini indir${NC}  ${DIM}(toplam ~${total_ram} GB disk)${NC}"
   echo -e "  ${C}[ 0]${NC} Manuel gir"
   echo ""
-  echo -e "  ${DIM}  Birden fazla: boşlukla ayır  →  1 3   |  Tek: sadece numara  →  2${NC}"
+  echo -e "  ${DIM}  Tek seçim → 2   |  Çoklu → 1 3   |  Hepsi → A${NC}"
   prompt "Seçim [Enter=1. öneri]:"
   read -r choice
 
@@ -417,6 +426,11 @@ select_model() {
 
   if [[ -z "$choice" ]]; then
     SELECTED_MODEL="${DISPLAY_LIST[0]}"
+  elif [[ "${choice,,}" == "a" ]]; then
+    SELECTED_MODEL="${DISPLAY_LIST[0]}"
+    EXTRA_MODELS=("${DISPLAY_LIST[@]:1}")
+    echo ""
+    info "Tüm modeller seçildi: ${W}${DISPLAY_LIST[*]}${NC}"
   elif [[ "$choice" == "0" ]]; then
     prompt "Model adını girin (örn: qwen2.5:7b):"
     read -r SELECTED_MODEL
@@ -577,20 +591,7 @@ setup_microsoft_sso() {
   prompt "İzin verilen domainler [örn: sirket.com,baska.com]:"
   read -r MS_ALLOWED_DOMAINS
 
-  echo ""
-  echo -e "  ${W}── Giriş Yöntemi ──────────────────────────────────${NC}"
-  echo -e "  ${DIM}  Sadece Microsoft ile giriş: kullanıcı adı/şifre formu gizlenir,${NC}"
-  echo -e "  ${DIM}  login sayfası açılınca doğrudan Microsoft'a yönlendirilir.${NC}"
-  echo ""
-  prompt "Sadece Microsoft ile giriş yapılsın mı? (kullanıcı adı/şifre devre dışı) [E/h]:"
-  read -r ms_only_choice
-  ms_only_choice="${ms_only_choice,,}"
-  if [[ "$ms_only_choice" == "h" || "$ms_only_choice" == "hayır" || "$ms_only_choice" == "n" || "$ms_only_choice" == "no" ]]; then
-    MS_ONLY="false"
-  else
-    MS_ONLY="true"
-  fi
-
+  # MS_ONLY already set by select_login_method; just confirm here
   info "Microsoft SSO yapılandırıldı"
   echo -e "  ${DIM}  Tenant: ${MS_TENANT_ID}${NC}"
   echo -e "  ${DIM}  İzinli domainler: ${MS_ALLOWED_DOMAINS:-<tümü>}${NC}"
@@ -630,6 +631,61 @@ setup_captcha() {
   fi
 
   info "Cloudflare Turnstile CAPTCHA etkinleştirildi"
+  divider
+}
+
+# ── Login Method Selection ────────────────────────────────────────────────────
+select_login_method() {
+  echo ""
+  echo -e "  ${W}── Giriş Yöntemi ─────────────────────────────${NC}"
+  echo ""
+  echo -e "  ${C}[1]${NC} 🔑 Kullanıcı adı + şifre  ${DIM}← yerel ağ, VPN, iç kullanım${NC}"
+  echo -e "  ${C}[2]${NC} 🏢 Yalnızca Microsoft SSO  ${DIM}← kurumsal, dışa açık erişim gerekir${NC}"
+  echo -e "  ${C}[3]${NC} 🔀 Her ikisi               ${DIM}← hem şifre hem MS SSO aktif${NC}"
+  echo ""
+  prompt "Seçim [1-3, Enter=1]:"
+  read -r lm_choice
+
+  LOGIN_METHOD="${lm_choice:-1}"
+
+  case "$LOGIN_METHOD" in
+    2)
+      echo ""
+      echo -e "  ${Y}┌──────────────────────────────────────────────────────────────────┐${NC}"
+      echo -e "  ${Y}│  ⚠  Microsoft SSO — Dışa Açık Erişim Gerektirir                 │${NC}"
+      echo -e "  ${Y}│                                                                  │${NC}"
+      echo -e "  ${Y}│  Microsoft, OAuth callback için HTTPS ile erişilebilir bir       │${NC}"
+      echo -e "  ${Y}│  public URL talep eder. Yerel IP (192.168.x.x, 10.x.x.x) ile    │${NC}"
+      echo -e "  ${Y}│  çalışmaz.                                                       │${NC}"
+      echo -e "  ${Y}│                                                                  │${NC}"
+      echo -e "  ${Y}│  Önerilen çözümler:                                              │${NC}"
+      echo -e "  ${Y}│  • Cloudflare Tunnel  (ücretsiz, port açmadan HTTPS)             │${NC}"
+      echo -e "  ${Y}│  • Nginx reverse proxy + Let's Encrypt SSL                       │${NC}"
+      echo -e "  ${Y}│  • Kurumsal VPN + iç DNS + SSL sertifikası                      │${NC}"
+      echo -e "  ${Y}│                                                                  │${NC}"
+      echo -e "  ${Y}│  README → 'Microsoft SSO + Cloudflare Tunnel' bölümüne bakın.   │${NC}"
+      echo -e "  ${Y}└──────────────────────────────────────────────────────────────────┘${NC}"
+      echo ""
+      prompt "Devam etmek istiyor musunuz? [E/h]:"
+      read -r ms_confirm
+      ms_confirm="${ms_confirm,,}"
+      if [[ "$ms_confirm" == "h" || "$ms_confirm" == "hayır" || "$ms_confirm" == "n" || "$ms_confirm" == "no" ]]; then
+        warn "Giriş yöntemi seçimine dönülüyor..."
+        select_login_method; return
+      fi
+      MS_ONLY="true"
+      info "Giriş yöntemi: ${W}Yalnızca Microsoft SSO${NC}"
+      ;;
+    3)
+      MS_ONLY="false"
+      info "Giriş yöntemi: ${W}Kullanıcı adı/şifre + Microsoft SSO${NC}"
+      ;;
+    1|*)
+      LOGIN_METHOD="1"
+      MS_ONLY="false"
+      info "Giriş yöntemi: ${W}Kullanıcı adı + şifre${NC}"
+      ;;
+  esac
   divider
 }
 
@@ -742,8 +798,15 @@ run_wizard() {
   select_category
   select_model
   pull_selected_models
-  setup_admin_account
-  setup_microsoft_sso
+  select_login_method
+  # Admin hesabı yalnızca şifre yöntemi seçildiyse oluştur
+  if [[ "${LOGIN_METHOD:-1}" != "2" ]]; then
+    setup_admin_account
+  fi
+  # Microsoft SSO yalnızca seçildiyse kur
+  if [[ "${LOGIN_METHOD:-1}" == "2" || "${LOGIN_METHOD:-1}" == "3" ]]; then
+    setup_microsoft_sso
+  fi
   setup_captcha
   save_config
 }

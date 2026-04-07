@@ -229,13 +229,23 @@ curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 ### Adım 2 — Donanım Analizi
+
+NordGpT RAM'i ve GPU VRAM'ini algılar; 5 katmana göre uygun modelleri önerir:
+
+| Katman | RAM | Önerilen Modeller |
+|--------|-----|-------------------|
+| 🌱 Çok Düşük | < 4 GB | qwen2.5:0.5b, tinyllama, gemma3:1b |
+| 🌿 Düşük | 4–8 GB | qwen2.5:1.5b, phi3:mini, gemma3:1b |
+| ⚡ Orta | 8–16 GB | phi4-mini, qwen2.5:7b, gemma3:4b |
+| 🔥 Yüksek | 16–48 GB | qwen2.5:14b, phi4, deepseek-r1:7b |
+| 🚀 Çok Yüksek | 48+ GB | qwen2.5:32b, llama3.1:70b, deepseek-r1:14b |
+
 ```
 ── Donanım ──────────────────────────────────
-RAM:     32 GB
-CPU:     8 çekirdek
-GPU:     NVIDIA RTX 3080
-VRAM:    10 GB
-Seviye:  ⚡ Orta  — 7-13B modeller önerilir
+RAM:     64 GB
+CPU:     4 çekirdek
+GPU:     Yok
+Seviye:  🚀 Çok Yüksek — 32B+ modeller çalışır
 ────────────────────────────────────────────
 ```
 
@@ -263,19 +273,40 @@ Hangi alanda kullanacaksınız?
 ```
 
 ### Adım 5 — Model Seçimi (Donanım + Dil Uyumlu)
+
+Birden fazla model seçerek indirebilirsiniz. İlk seçilen varsayılan olur.
+
 ```
-Önerilen modeller (donanım: medium | dil: tr):
+Önerilen modeller (donanım: very_high | ~RAM gereksinimi):
 
-[1] llama3.1:8b    [tr ✓]  ← zaten yüklü
-[2] qwen2.5:7b     [tr ✓]
-[3] mistral:7b     [tr ✓]
-[4] codellama:13b  [tr ±]
-[0] Manuel gir
+[ 1] qwen2.5:32b             ~ 20.0 GB  Çok güçlü
+[ 2] deepseek-r1:14b         ~  9.0 GB  Derin reasoning
+[ 3] llama3.1:70b            ~ 42.0 GB  En güçlü (64GB+)
+[ 4] qwen2.5:14b             ~  9.0 GB  Hız/kalite dengesi
+[ A] Hepsini indir           (toplam ~80 GB disk)
+[ 0] Manuel gir
+
+  Tek seçim → 2   |  Çoklu → 1 3   |  Hepsi → A
 ```
 
-> Türkçe veya Arapça seçildiğinde dil uyumsuz modeller (phi3, tinyllama vb.) otomatik olarak düşük önceliğe alınır.
+> Türkçe veya Arapça seçildiğinde dil uyumsuz modeller otomatik olarak düşük önceliğe alınır.
 
-### Adım 6 — Admin Hesabı Oluşturma
+### Adım 6 — Giriş Yöntemi Seçimi
+
+```
+── Giriş Yöntemi ─────────────────────────────
+[1] 🔑 Kullanıcı adı + şifre  ← yerel ağ, VPN, iç kullanım
+[2] 🏢 Yalnızca Microsoft SSO  ← kurumsal, dışa açık erişim gerekir
+[3] 🔀 Her ikisi               ← hem şifre hem MS SSO aktif
+```
+
+> **[2] seçilirse uyarı:** Microsoft SSO, callback için HTTPS ile erişilebilir bir public URL gerektirir. Yerel IP ile çalışmaz. Cloudflare Tunnel, Nginx+SSL veya kurumsal VPN+DNS gereklidir.
+> Bkz. → [Microsoft SSO + Cloudflare Tunnel](#microsoft-sso--cloudflare-tunnel-kurulumu)
+
+### Adım 7 — Admin Hesabı Oluşturma
+
+> Giriş yöntemi [1] veya [3] seçildiyse oluşturulur. [2] (Yalnızca MS SSO) seçildiyse bu adım atlanır.
+
 ```
 ── Admin Hesabı Oluştur ──────────────────────
   Sisteme sadece admin yeni kullanıcı ekleyebilir.
@@ -286,22 +317,21 @@ Hangi alanda kullanacaksınız?
 ✔  Admin hesabı oluşturuldu: davut
 ```
 
-### Adım 7 — Microsoft SSO (Opsiyonel)
+### Adım 8 — Microsoft SSO (Opsiyonel)
+
+> Giriş yöntemi [2] veya [3] seçildiyse bu adım açılır.
+
 ```
 ── Microsoft Entra ID / Azure AD SSO ────────
-  Kurumsal Microsoft hesaplarıyla giriş için yapılandırın.
-  Atlamak için Enter'a basın.
-
-? Microsoft Client ID [boş bırak = atla]:
-? Microsoft Client Secret:
+? Application (Client) ID:  xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+? Client Secret (Value):    ••••••••••••••••
 ? Tenant ID [common]:
-? Redirect URI [https://yourdomain.com/auth/microsoft/callback]:
-? İzin verilen domain'ler [boş = tümü]:  sirket.com,baska.com
-? Sadece Microsoft girişi? (şifre girişini devre dışı bırakır) [e/H]: e
+? Redirect URI:  https://chat.sirket.com/auth/microsoft/callback
+? İzin verilen domain'ler [boş = tümü]:  sirket.com
 ✔  Microsoft SSO yapılandırıldı.
 ```
 
-### Adım 8 — CAPTCHA (Opsiyonel)
+### Adım 9 — CAPTCHA (Opsiyonel)
 ```
 ── Cloudflare Turnstile CAPTCHA ─────────────
   Login formuna CAPTCHA eklemek ister misiniz?
@@ -352,7 +382,105 @@ cloudflared tunnel run nordgpt
 
 > Cloudflare Tunnel sayesinde sunucunuzda hiçbir port açmanıza gerek kalmaz. Tüm trafik Cloudflare altyapısı üzerinden şifreli geçer.
 
-### Systemd Servisi (Linux)
+---
+
+## 🏢 Microsoft SSO + Cloudflare Tunnel Kurulumu
+
+Microsoft SSO, OAuth2 callback için **HTTPS ile erişilebilir bir public URL** zorunlu kılar. Yerel IP adresleri (192.168.x.x, 10.x.x.x, 172.16.x.x) desteklenmez.
+
+> Kurulum sihirbazında **[2] Yalnızca Microsoft SSO** seçtiyseniz bu adımları tamamlayın.
+
+### Adım 1 — Cloudflare Tunnel ile Public URL Al
+
+```bash
+# 1. cloudflared kur (Ubuntu/Debian)
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+
+# 2. Cloudflare hesabınıza giriş yapın
+cloudflared tunnel login
+
+# 3. Tunnel oluşturun
+cloudflared tunnel create nordgpt
+
+# 4. Yapılandırma dosyası
+sudo mkdir -p /etc/cloudflared
+sudo tee /etc/cloudflared/config.yml <<EOF
+tunnel: <TUNNEL_ID>
+credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: chat.sirket.com
+    service: http://localhost:7860
+  - service: http_status:404
+EOF
+
+# 5. DNS kaydı oluşturun (Cloudflare DNS'te CNAME otomatik eklenir)
+cloudflared tunnel route dns nordgpt chat.sirket.com
+
+# 6. Systemd servisi olarak kur
+sudo cloudflared service install
+sudo systemctl enable --now cloudflared
+```
+
+### Adım 2 — Azure Portal Ayarları
+
+1. [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations**
+2. Uygulamanızı seçin → **Authentication** → **Add a platform** → **Web**
+3. **Redirect URI** olarak ekleyin:
+   ```
+   https://chat.sirket.com/auth/microsoft/callback
+   ```
+4. **Save**
+
+> Redirect URI, `http://` veya yerel IP ile çalışmaz. Mutlaka `https://` ile başlamalıdır.
+
+### Adım 3 — NordGpT Yapılandırması
+
+`.nordgpt.conf` dosyasını güncelleyin:
+
+```ini
+MICROSOFT_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_CLIENT_SECRET=your_client_secret_value
+MICROSOFT_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+MICROSOFT_REDIRECT_URI=https://chat.sirket.com/auth/microsoft/callback
+ALLOWED_DOMAINS=sirket.com          # boş bırakılırsa tüm MS hesapları
+MICROSOFT_ONLY=true
+```
+
+```bash
+sudo systemctl restart nordgpt
+```
+
+### Alternatif: Nginx + Let's Encrypt
+
+Cloudflare Tunnel yerine kendi SSL sertifikanız varsa:
+
+```bash
+# Let's Encrypt sertifikası al
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d chat.sirket.com
+
+# Nginx yapılandırması /etc/nginx/sites-available/nordgpt
+```
+```nginx
+server {
+    listen 443 ssl;
+    server_name chat.sirket.com;
+    ssl_certificate     /etc/letsencrypt/live/chat.sirket.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chat.sirket.com/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:7860;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection keep-alive;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Sistemd Servisi (Linux)
 
 NordGpT'yi sistem başlangıcında otomatik başlatmak için:
 
